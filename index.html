@@ -126,7 +126,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <section class="panel">
  <div class="panelhead"><h2>ビッグサンダー・マウンテン 待ち時間グラフ</h2><span class="stamp" id="btmGraphStamp">本日</span></div>
  <div id="btmGraph"><div class="loading">待ち時間の記録を取得しています…</div></div>
- <p class="note">横軸は開園〜閉園。ThemeParks.wikiに残っている本日の履歴（待ち時間の変化記録）と、この端末で開いている間の記録を合わせて表示しています。</p>
+ <p class="note">横軸は開園〜閉園。ThemeParks.wikiに残っている本日の履歴（待ち時間の変化記録）と、この端末で開いている間の記録を合わせて表示しています。色の帯はパレード開始から約40分間の目安です。</p>
 </section>
 
 <section class="panel">
@@ -306,7 +306,7 @@ async function loadPark(){
  renderLive(live);
  renderHours(schedule.schedule||[]);
 }
-function labelStatus(s){return({OPERATING:'運営中',DOWN:'一時休止',CLOSED:'運営終了',REFURBISHMENT:'休止中'})[s]||'状況確認中'}
+function labelStatus(s){return({OPERATING:'運営中',DOWN:'一時休止',CLOSED:'運営終了',REFURBISHMENT:'長期休止中'})[s]||'状況確認中'}
 function renderLive(data){
  const arr=data.liveData||[];
  const rides=arr.filter(x=>x.entityType==='ATTRACTION');
@@ -321,23 +321,99 @@ function renderLive(data){
   const w=btm.queue?.STANDBY?.waitTime;
   const isOp=btm.status==='OPERATING';
   $('btmWait').innerHTML=isOp&&Number.isFinite(w)?`${w}<i>分</i>`:`--<i>分</i>`;
-  $('btmStatus').textContent=labelStatus(btm.status);
+  $('btmStatus').textContent=(btm.status==='CLOSED'&&tokyoMinutes()>=360&&tokyoMinutes()<parkRange.open)?'オープン前':labelStatus(btm.status);
+  btmHero={id:btm.entityId||btm.id,status:btm.status};updateBtmEndTime();
   $('btmStatus').className='btm-status'+(isOp?'':' down');
  }else{
   $('btmWait').innerHTML=`--<i>分</i>`;
+  btmHero=null;
   $('btmStatus').textContent='データなし';
   $('btmStatus').className='btm-status down';
  }
  const top=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime).slice(0,3);
  $('topRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
  const down=rides.filter(x=>['DOWN','CLOSED','REFURBISHMENT'].includes(x.status));
- $('closedRides').innerHTML=down.length?down.map(x=>`<div class="row"><div><div class="rowname">${esc(name(x))}</div><div class="rowmeta">運営状況</div></div><span class="status down">${labelStatus(x.status)}</span></div>`).join(''):'<div class="row"><div class="rowname">現在、休止中のアトラクションはありません</div><span class="status open">運営中</span></div>';
+ lastDown=down.map(x=>({id:x.entityId||x.id,nm:name(x),status:x.status}));
+ $('closedRides').innerHTML=closedRidesHtml(lastDown);
+ loadDowntimes();
  if(btm){btmEntityId=btm.entityId||btm.id||btmEntityId;loadBtmHistory();recordBtm(btm.queue?.STANDBY?.waitTime,btm.status)}else{renderBtmGraph()}
  $('rideStamp').textContent='更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
  $('statusStamp').textContent='更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
 }
+let btmHero=null;
+function updateBtmEndTime(){
+ if(!btmHero||btmHero.status!=='CLOSED')return;
+ const dt=downtime[btmHero.id];if(!dt)return;
+ let t='';
+ if(dt.allDay){if(tokyoMinutes()>=parkRange.open)t='終日'}
+ else if(dt.periods.length)t=fmtMin(dt.periods[dt.periods.length-1].start);
+ if(!t)return;
+ const el=$('btmStatus');if(el){el.innerHTML='運営終了<br>'+t;el.style.textAlign='center';el.style.lineHeight='1.3'}
+}
+let downtime={},downtimeFetchedAt=0,downtimeLoading=false,lastDown=[];
+const CLOSURE_PERIODS={
+ 'スイスファミリー・ツリーハウス':'2022年4月1日～未定',
+ 'シンデレラのフェアリーテイル・ホール':'2026年10月1日～未定',
+ 'スティッチ・エンカウンター':'2026年11月2日～11月30日',
+ 'Swiss Family Treehouse':'2022年4月1日～未定',
+ "Cinderella's Fairy Tale Hall":'2026年10月1日～未定',
+ 'Stitch Encounter':'2026年11月2日～11月30日'
+};
+function computeDowntime(data){
+ const pts=[];
+ const op=data.opening;
+ const opState=op&&(op.queue||op.status)?op:(op?Object.values(op)[0]:null);
+ if(opState)pts.push({m:parkRange.open,op:opState.status==='OPERATING'});
+ (data.history||[]).forEach(r=>{if(r.time)pts.push({m:tokyoMinutes(new Date(r.time)),op:r.status==='OPERATING'})});
+ pts.sort((a,b)=>a.m-b.m);
+ const periods=[];let everOp=false,stopStart=null,wasOp=false;
+ for(const p of pts){
+  if(p.m<parkRange.open||p.m>parkRange.close+30)continue;
+  if(p.op){everOp=true;if(stopStart!=null){periods.push({start:stopStart,end:p.m});stopStart=null}wasOp=true}
+  else{if(wasOp&&stopStart==null)stopStart=p.m;wasOp=false}
+ }
+ if(stopStart!=null)periods.push({start:stopStart,end:null});
+ return{periods,allDay:!everOp};
+}
+function closedRidesHtml(rows){
+ if(!rows.length)return '<div class="row"><div class="rowname">現在、休止中のアトラクションはありません</div><span class="status open">運営中</span></div>';
+ return rows.map(r=>{
+  const dt=downtime[r.id];
+  let red='';
+  if(dt&&dt.periods.length)red=` <span style="color:#ff8a7a;font-weight:700">${dt.periods.map(p=>p.end?fmtMin(p.start)+'〜'+fmtMin(p.end):(r.status==='CLOSED'?fmtMin(p.start):fmtMin(p.start)+'〜')).join('・')}</span>`;
+  let pill=labelStatus(r.status),pillStyle='';
+  const preOpen=r.status==='CLOSED'&&tokyoMinutes()>=360&&tokyoMinutes()<parkRange.open;
+  if(preOpen)pill='オープン前';
+  const twoLine=t=>{pill+='<br>'+t;pillStyle='text-align:center;line-height:1.3'};
+  if(r.status==='REFURBISHMENT')twoLine('終日');
+  else if(r.status==='CLOSED'&&dt&&!preOpen){
+   if(dt.allDay&&tokyoMinutes()>=parkRange.open)twoLine('終日');
+   else if(dt.periods.length)twoLine(fmtMin(dt.periods[dt.periods.length-1].start));
+  }
+  const period=r.status==='REFURBISHMENT'?CLOSURE_PERIODS[r.nm]:'';
+  const periodHtml=period?` <span style="color:#ffd9a0">休止期間 ${esc(period)}</span>`:'';
+  return `<div class="row"><div><div class="rowname">${esc(r.nm)}</div><div class="rowmeta">運営状況${red}${periodHtml}</div></div><span class="status down" style="${pillStyle}">${pill}</span></div>`;
+ }).join('');
+}
+async function loadDowntimes(){
+ if(!lastDown.length||downtimeLoading)return;
+ if(downtimeFetchedAt&&Date.now()-downtimeFetchedAt<30*60*1000)return;
+ const parkId=landPark?.id;
+ if(!parkId)return;
+ downtimeLoading=true;
+ try{
+  const data=await json(TP+'/entity/'+parkId+'/history?date='+dateTokyo(),'履歴を取得できません');
+  (data.entities||[]).forEach(e=>{downtime[e.id]=computeDowntime(e)});
+  downtimeFetchedAt=Date.now();
+ }catch(e){/* 取れない場合は時間なしで表示 */}
+ downtimeLoading=false;
+ if(lastDown.length)$('closedRides').innerHTML=closedRidesHtml(lastDown);
+ updateBtmEndTime();
+}
 let parkRange={open:540,close:1260};
 let btmHistory=[],btmHistoryAt=0,btmEntityId=null;
+let paradeBands=[];
+let btmChart=null;
 let btmSamples=null;
 function tokyoMinutes(d=new Date()){
  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
@@ -387,6 +463,7 @@ function renderBtmGraph(){
  if(btmHistory.length){const lastH=Math.max(...btmHistory.map(x=>x.m));samples=btmHistory.concat(samples.filter(x=>x.m>lastH))}
  samples.sort((a,b)=>a.m-b.m);
  const {open,close}=parkRange;
+ const stops=[];{let cs=null;for(const p of samples){if(p.w==null){if(!cs)cs={start:p.m,end:null}}else if(cs){cs.end=p.m;stops.push(cs);cs=null}}if(cs)stops.push(cs)}
  samples=samples.filter(x=>x.m>=open&&x.m<=close);
  const W=640,H=190,pl=36,pr=10,pt=12,pb=24,iw=W-pl-pr,ih=H-pt-pb;
  const waits=samples.filter(x=>x.w!=null).map(x=>x.w);
@@ -395,17 +472,74 @@ function renderBtmGraph(){
  const X=m=>pl+(m-open)/(close-open)*iw;
  const Y=w=>pt+ih-(w/yMax)*ih;
  let g='';
+ const palette=['#ff9ecb','#8ecbff','#c39bff','#7fe0b2','#ffb37f'];
+ const colorOf={}; let ci=0;
+ const shortName=n=>n.includes('トイズ')?'トイズ':n.includes('ハーモニー')?'ハーモニー':n.includes('エレクトリカル')?'エレクトリカル':n.includes('スターブライト')?'花火':n;
+ paradeBands.filter(b=>b.start<close&&b.start+40>open).sort((a,b)=>a.start-b.start).forEach(b=>{
+  if(!(b.name in colorOf))colorOf[b.name]=palette[ci++%palette.length];
+  const c=colorOf[b.name];
+  const x1=X(Math.max(b.start,open)),x2=X(Math.min(b.start+40,close));
+  g+=`<rect x="${x1.toFixed(1)}" y="${pt}" width="${Math.max(x2-x1,2).toFixed(1)}" height="${ih}" fill="${c}" opacity="0.16"/><text x="${(x1+3).toFixed(1)}" y="${pt+10}" fill="${c}" font-size="8.5" font-weight="bold">${shortName(b.name)}</text>`;
+ });
+
  for(let w=0;w<=yMax;w+=30){const y=Y(w);g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="rgba(255,255,255,.14)" stroke-width="1"/><text x="${pl-5}" y="${y+3}" fill="#c9d3db" font-size="9" text-anchor="end">${w}</text>`}
  for(let m=Math.ceil(open/60)*60;m<=close;m+=60){const x=X(m);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="rgba(255,255,255,.06)" stroke-width="1"/><text x="${x}" y="${H-8}" fill="#c9d3db" font-size="9" text-anchor="middle">${fmtMin(m)}</text>`}
  const now=tokyoMinutes();
  if(now>=open&&now<=close){const x=X(now);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="#8ecbff" stroke-width="1" stroke-dasharray="3 3"/><text x="${x}" y="${pt-2}" fill="#8ecbff" font-size="9" text-anchor="middle">現在</text>`}
  let seg=[];
- const flush=()=>{if(seg.length>=2){const pts=seg.map(p=>`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`).join(' ');g+=`<polygon points="${X(seg[0].m).toFixed(1)},${Y(0)} ${pts} ${X(seg[seg.length-1].m).toFixed(1)},${Y(0)}" fill="rgba(255,215,139,.13)" stroke="none"/><polyline points="${pts}" fill="none" stroke="#ffd78b" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`}else if(seg.length===1){g+=`<circle cx="${X(seg[0].m)}" cy="${Y(seg[0].w)}" r="3" fill="#ffd78b"/>`}seg=[]};
- samples.forEach(p=>{if(p.w==null){flush()}else{seg.push(p)}});flush();
+ const flush=(isLast)=>{
+  if(seg.length){
+   const pts=[];
+   seg.forEach((p,i)=>{
+    if(i===0)pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`);
+    else{pts.push(`${X(p.m).toFixed(1)},${Y(seg[i-1].w).toFixed(1)}`);pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`)}
+   });
+   const lp=seg[seg.length-1];
+   const endM=isLast?Math.min(Math.max(now,lp.m),close):lp.m;
+   if(endM>lp.m)pts.push(`${X(endM).toFixed(1)},${Y(lp.w).toFixed(1)}`);
+   if(pts.length>=2){g+=`<polygon points="${X(seg[0].m).toFixed(1)},${Y(0)} ${pts.join(' ')} ${X(endM).toFixed(1)},${Y(0)}" fill="rgba(255,215,139,.13)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#ffd78b" stroke-width="2" stroke-linejoin="round" stroke-linecap="square"/>`}
+   else{g+=`<circle cx="${X(seg[0].m)}" cy="${Y(seg[0].w)}" r="3" fill="#ffd78b"/>`}
+  }
+  seg=[];
+ };
+ samples.forEach(p=>{if(p.w==null){flush(false)}else{seg.push(p)}});flush(true);
  const valid=samples.filter(x=>x.w!=null);
  if(valid.length){const lp=valid[valid.length-1];g+=`<circle cx="${X(lp.m)}" cy="${Y(lp.w)}" r="4" fill="#ffd78b" stroke="#17202a" stroke-width="1.5"/><text x="${Math.min(X(lp.m),W-40)}" y="${Math.max(Y(lp.w)-8,10)}" fill="#ffe0a5" font-size="11" font-weight="bold" text-anchor="middle">${lp.w}分</text>`}
- el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="ビッグサンダー・マウンテン待ち時間グラフ">${g}</svg>`+(valid.length?`<div style="font-size:11px;color:#e4e8eb;margin-top:6px">現在 ${valid[valid.length-1].w}分 ／ 最高 ${Math.max(...waits)}分 ／ 平均 ${Math.round(waits.reduce((a,b)=>a+b,0)/waits.length)}分（記録 ${samples.length}件）</div>`:'<div class="empty">本日の履歴を読み込んでいます…</div>');
+ btmChart={samples,open,close,W,H,pl,pr,pt,ih,iw,yMax};
+ el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="ビッグサンダー・マウンテン待ち時間グラフ">${g}<g id="btmGuideG" style="display:none"><line id="btmGuideLine" y1="${pt}" y2="${pt+ih}" stroke="#ffffff" stroke-width="1" opacity="0.75"/><circle id="btmGuideDot" r="5" fill="#ffffff" stroke="#ffd78b" stroke-width="2"/></g></svg><div id="btmReadout" style="font-size:12.5px;color:#ffe0a5;font-weight:700;min-height:17px;margin-top:6px"></div>`+(valid.length?`<div style="font-size:11px;color:#e4e8eb;margin-top:6px">現在 ${valid[valid.length-1].w}分 ／ 最高 ${Math.max(...waits)}分 ／ 平均 ${Math.round(waits.reduce((a,b)=>a+b,0)/waits.length)}分（記録 ${samples.length}件）</div>`:'<div class="empty">本日の履歴を読み込んでいます…</div>');
+ const stopTxt=[];
+ stops.filter(st=>st.start>open).forEach(st=>{
+  if(st.end!=null)stopTxt.push(`一時運営中止 ${fmtMin(st.start)}〜${fmtMin(st.end)}`);
+  else if(st.start>=close-15)stopTxt.push(`ラインカット ${fmtMin(Math.min(st.start,close))}`);
+  else if(now>close)stopTxt.push(`運営終了 ${fmtMin(st.start)}`);
+  else stopTxt.push(`一時運営中止 ${fmtMin(st.start)}〜継続中`);
+ });
+ if(!stopTxt.length&&now>close&&samples.some(x=>x.w!=null))stopTxt.push(`ラインカット ${fmtMin(close)}`);
+ if(stopTxt.length)el.innerHTML+=`<div style="font-size:11px;color:#ffb37f;margin-top:4px">${stopTxt.join(' ／ ')}</div>`;
+ const legendNames=Object.keys(colorOf);
+ if(legendNames.length){el.innerHTML+=`<div style="font-size:10.5px;color:#d7e0e7;margin-top:5px;line-height:1.7">${legendNames.map(n=>`<span style="margin-right:10px;white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${colorOf[n]};margin-right:4px"></span>${esc(shortName(n))} ${paradeBands.filter(b=>b.name===n).map(b=>fmtMin(b.start)).join('・')}</span>`).join('')}</div>`}
  $('btmGraphStamp').textContent=fmtMin(open)+'〜'+fmtMin(close);
+ const svgEl=el.querySelector('svg');
+ if(svgEl&&btmChart){
+  const showAt=clientX=>{
+   const rect=svgEl.getBoundingClientRect();if(!rect.width)return;
+   const vx=(clientX-rect.left)/rect.width*btmChart.W;
+   const mins=btmChart.open+(vx-btmChart.pl)/btmChart.iw*(btmChart.close-btmChart.open);
+   let cur=null;
+   for(const p of btmChart.samples){if(p.m<=mins)cur=p;else break}
+   const gEl=svgEl.querySelector('#btmGuideG');if(!gEl)return;
+   if(!cur||cur.w==null){gEl.style.display='none';return}
+   const cx=btmChart.pl+(Math.min(Math.max(mins,btmChart.open),btmChart.close)-btmChart.open)/(btmChart.close-btmChart.open)*btmChart.iw;
+   const cy=btmChart.pt+btmChart.ih-(cur.w/btmChart.yMax)*btmChart.ih;
+   gEl.style.display='';
+   const ln=svgEl.querySelector('#btmGuideLine');ln.setAttribute('x1',cx);ln.setAttribute('x2',cx);
+   const dt=svgEl.querySelector('#btmGuideDot');dt.setAttribute('cx',cx);dt.setAttribute('cy',cy);
+   const ro=$('btmReadout');if(ro)ro.textContent=fmtMin(Math.round(mins))+' → 待ち時間 '+cur.w+'分';
+  };
+  svgEl.addEventListener('touchstart',e=>{showAt(e.touches[0].clientX)},{passive:true});
+  svgEl.addEventListener('touchmove',e=>{if(e.cancelable)e.preventDefault();showAt(e.touches[0].clientX)},{passive:false});
+  svgEl.addEventListener('mousemove',e=>{showAt(e.clientX)});
+ }
 }
 function renderHours(schedule){
  const today=dateTokyo();
@@ -416,7 +550,7 @@ function renderHours(schedule){
  renderBtmGraph();
  $('dateLabel').textContent='更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
 }
-const SHOWCSV='tdl_show_schedule_20261116_20261215.csv';
+const SHOWCSV='tdl_show_schedule.csv';
 function parseCsv(text){
  const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/);
  const head=lines[0].split(',');
@@ -443,6 +577,17 @@ async function loadShows(){
   const badges=x=>`${x.premier_access==='○'?'<span class="badge pa">プレミアアクセス</span>':''}${x.entry_reception==='○'?'<span class="badge en">エントリー受付</span>':''}${x.reservation_required==='○'?'<span class="badge rs">予約必須</span>':''}`;
   const firstTime=x=>{const m=(x.times||'').match(/\d{1,2}:\d{2}/);return m?m[0].padStart(5,'0'):'99:99'};
   shows.sort((a,b)=>firstTime(a).localeCompare(firstTime(b)));
+  const isParade=n=>/パレード|ハーモニー|トイズ/.test(n||'');
+  const seenBand=new Set(); paradeBands=[];
+  shows.filter(x=>isParade(x.name)).forEach(x=>{
+   (x.times||'').split('/').forEach(t=>{
+    const m=t.match(/(\d{1,2}):(\d{2})/); if(!m)return;
+    const st=Number(m[1])*60+Number(m[2]); const k=x.name+'@'+st;
+    if(seenBand.has(k))return; seenBand.add(k);
+    paradeBands.push({name:x.name,start:st});
+   });
+  });
+  renderBtmGraph();
   $('showList').innerHTML=shows.length?shows.map(x=>`<div class="row"><div><div class="rowname">${esc(x.name)}${badges(x)}</div><div class="showtimes">${esc(x.times||x.note||'')}</div></div></div>`).join(''):'<div class="empty">この日のショースケジュールはCSVに含まれていません</div>';
   $('greetList').innerHTML=greets.length?greets.map(x=>`<div class="row"><div><div class="rowname">${esc(x.name)}</div><div class="rowmeta">${esc(x.times||'')}</div></div></div>`).join(''):'<div class="empty">この日のグリーティング情報はCSVに含まれていません</div>';
   $('showStamp').textContent=today.replaceAll('-','/');
