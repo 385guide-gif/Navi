@@ -210,10 +210,9 @@ async function loadJma(){
    const hr=hourTokyo(td);
    const val=t.temps[idx];
    if(val===''||val==null)return;
-   if(dStr===todayStr){if(hr<12)todayMin=val;else todayMax=val;}
-   else if(dStr===tomorrowStr){if(hr<12)tomorrowMin=val;else tomorrowMax=val;}
+   if(dStr===todayStr){if(hr>=6)todayMax=val;else todayMin=val;}
+   else if(dStr===tomorrowStr){if(hr>=6)tomorrowMax=val;else tomorrowMin=val;}
   });
-  if(todayMin==='--'&&t.temps.length>=2&&t.temps[0]===t.temps[1]){todayMax=t.temps[0];}
  }
 
  const timeDefines=weatherSeries.timeDefines||[];
