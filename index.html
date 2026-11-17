@@ -51,6 +51,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:8px;pad
 .amedas-item strong{font-size:17px;font-weight:900;color:#ffe0a5}
 .amedas-item em{font-size:11px;font-style:normal;color:#e4e8eb}
 .amedas-meta{font-size:10px;color:#c9d3db}
+.costume-icon{width:46px;height:46px;border-radius:10px;background:#fff;object-fit:cover;flex:none}
 .fw-row{flex-basis:100%;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
 .fw-head{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:800}
 .fw-head .fw-sub{font-size:10px;color:#d7e0e7;font-weight:600}
@@ -130,6 +131,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
  <div class="amedas-vals">
   <div class="amedas-item"><span>気温</span><strong id="currentTemp">--<em> ℃</em></strong></div>
   <div class="amedas-item"><span>風速</span><strong id="currentWind">--<em> m/s</em></strong></div>
+  <img class="costume-icon" id="costumeIcon" src="icon_vest.png" alt="">
   <div class="amedas-item"><span>風向</span><strong id="currentDirection" style="font-size:13px;color:#fff">--</strong></div>
  </div>
  <div class="amedas-meta">アメダス観測所 44136（<span id="amedasTime">--</span>）</div>
@@ -307,6 +309,7 @@ async function loadAmedas(){
  const d=await json(AMEDAS,'アメダスデータを取得できません');
  const val=x=>Array.isArray(x)?x[0]:x;
  $('currentTemp').innerHTML=`${val(d.temp)??'--'}<em> ℃</em>`;
+ const tv=Number(val(d.temp));if(Number.isFinite(tv)){$('costumeIcon').src=tv>=25?'icon_shirt.png':tv>=15?'icon_vest.png':tv>=8?'icon_jacket.png':'icon_coat.png'}
  $('currentWind').innerHTML=`${val(d.wind)??'--'}<em> m/s</em>`;
  $('currentDirection').textContent=d.windDirection?windDir(val(d.windDirection)): '--';
  $('amedasTime').textContent=d.dataTime?.[0]||'--';
