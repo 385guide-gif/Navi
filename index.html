@@ -357,12 +357,32 @@ function updateBtmEndTime(){
 }
 let downtime={},downtimeFetchedAt=0,downtimeLoading=false,lastDown=[];
 const CLOSURE_EMBED={
- 'スイスファミリー・ツリーハウス':'2022年4月1日～未定',
- 'シンデレラのフェアリーテイル・ホール':'2026年10月1日～未定',
- 'スティッチ・エンカウンター':'2026年11月2日～11月30日',
- 'Swiss Family Treehouse':'2022年4月1日～未定',
- "Cinderella's Fairy Tale Hall":'2026年10月1日～未定',
- 'Stitch Encounter':'2026年11月2日～11月30日'
+ 'スイスファミリー・ツリーハウス':{period:'2022年4月1日～未定',start:'2022-04-01',end:''},
+ 'Swiss Family Treehouse':{period:'2022年4月1日～未定',start:'2022-04-01',end:''},
+ 'シンデレラのフェアリーテイル・ホール':{period:'2026年10月1日～未定',start:'2026-10-01',end:''},
+ "Cinderella's Fairy Tale Hall":{period:'2026年10月1日～未定',start:'2026-10-01',end:''},
+ 'スティッチ・エンカウンター':{period:'2026年11月2日～11月30日',start:'2026-11-02',end:'2026-11-30'},
+ 'Stitch Encounter':{period:'2026年11月2日～11月30日',start:'2026-11-02',end:'2026-11-30'},
+ 'カリブの海賊':{period:'2027年5月12日～5月25日',start:'2027-05-12',end:'2027-05-25'},
+ 'Pirates of the Caribbean':{period:'2027年5月12日～5月25日',start:'2027-05-12',end:'2027-05-25'},
+ 'ジャングルクルーズ：ワイルドライフ・エクスペディション':{period:'2027年1月6日～3月31日',start:'2027-01-06',end:'2027-03-31'},
+ 'Jungle Cruise: Wildlife Expeditions':{period:'2027年1月6日～3月31日',start:'2027-01-06',end:'2027-03-31'},
+ '蒸気船マークトウェイン号':{period:'2027年5月12日～5月18日',start:'2027-05-12',end:'2027-05-18'},
+ 'Mark Twain Riverboat':{period:'2027年5月12日～5月18日',start:'2027-05-12',end:'2027-05-18'},
+ 'スプラッシュ・マウンテン':{period:'2027年1月7日～2月4日',start:'2027-01-07',end:'2027-02-04'},
+ 'Splash Mountain':{period:'2027年1月7日～2月4日',start:'2027-01-07',end:'2027-02-04'},
+ 'イッツ・ア・スモールワールド':{period:'2027年5月26日～6月27日',start:'2027-05-26',end:'2027-06-27'},
+ "it's a small world":{period:'2027年5月26日～6月27日',start:'2027-05-26',end:'2027-06-27'},
+ 'ピーターパン空の旅':{period:'2027年1月6日～2月2日',start:'2027-01-06',end:'2027-02-02'},
+ "Peter Pan's Flight":{period:'2027年1月6日～2月2日',start:'2027-01-06',end:'2027-02-02'},
+ 'ホーンテッドマンション':{period:'2027年1月8日～2月4日',start:'2027-01-08',end:'2027-02-04'},
+ 'Haunted Mansion':{period:'2027年1月8日～2月4日',start:'2027-01-08',end:'2027-02-04'},
+ 'ミッキーのフィルハーマジック':{period:'2027年3月4日～4月2日',start:'2027-03-04',end:'2027-04-02'},
+ "Mickey's PhilharMagic":{period:'2027年3月4日～4月2日',start:'2027-03-04',end:'2027-04-02'},
+ 'ロジャーラビットのカートゥーンスピン':{period:'2027年2月8日～3月2日',start:'2027-02-08',end:'2027-03-02'},
+ "Roger Rabbit's Car Toon Spin":{period:'2027年2月8日～3月2日',start:'2027-02-08',end:'2027-03-02'},
+ 'スター・ツアーズ：ザ・アドベンチャーズ・コンティニュー':{period:'2027年2月5日～2月18日',start:'2027-02-05',end:'2027-02-18'},
+ 'Star Tours: The Adventures Continue':{period:'2027年2月5日～2月18日',start:'2027-02-05',end:'2027-02-18'}
 };
 let CLOSURE_PERIODS={...CLOSURE_EMBED};
 async function loadClosurePeriods(){
@@ -371,7 +391,7 @@ async function loadClosurePeriods(){
   if(!r.ok)return;
   const rows=parseCsv(await r.text());
   const map={};
-  rows.forEach(x=>{if(x.name&&x.period)map[x.name]=x.period});
+  rows.forEach(x=>{if(x.name&&x.period)map[x.name]={period:x.period,start:x.start||'',end:x.end||''}});
   if(Object.keys(map).length){CLOSURE_PERIODS=map;if(lastDown.length)$('closedRides').innerHTML=closedRidesHtml(lastDown)}
  }catch(e){}
 }
@@ -393,7 +413,7 @@ function computeDowntime(data){
 }
 function closedRidesHtml(rows){
  if(!rows.length)return '<div class="row"><div class="rowname">現在、休止中のアトラクションはありません</div><span class="status open">運営中</span></div>';
- const isRehab=r=>r.status==='REFURBISHMENT'||!!CLOSURE_PERIODS[r.nm];
+ const isRehab=r=>{if(r.status==='REFURBISHMENT')return true;const c=CLOSURE_PERIODS[r.nm];if(!c)return false;const t=dateTokyo();return(!c.start||t>=c.start)&&(!c.end||t<=c.end)};
  const sorted=[...rows].sort((a,b)=>(isRehab(a)?1:0)-(isRehab(b)?1:0));
  return sorted.map(r=>{
   const dt=downtime[r.id];
@@ -411,7 +431,7 @@ function closedRidesHtml(rows){
    if(dt.allDay&&tokyoMinutes()>=parkRange.open)twoLine('終日');
    else if(dt.periods.length)twoLine(fmtMin(dt.periods[dt.periods.length-1].start));
   }
-  const period=CLOSURE_PERIODS[r.nm]||'';
+  const period=rehab?(CLOSURE_PERIODS[r.nm]?.period||''):'';
   const periodHtml=period?` <span style="color:#ffd9a0">休止期間 ${esc(period)}</span>`:'';
   return `<div class="row"><div><div class="rowname">${esc(r.nm)}</div><div class="rowmeta">運営状況${red}${periodHtml}</div></div><span class="status down" style="${pillStyle}">${pill}</span></div>`;
  }).join('');
