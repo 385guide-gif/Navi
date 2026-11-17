@@ -382,22 +382,25 @@ function computeDowntime(data){
 }
 function closedRidesHtml(rows){
  if(!rows.length)return '<div class="row"><div class="rowname">現在、休止中のアトラクションはありません</div><span class="status open">運営中</span></div>';
- return rows.map(r=>{
+ const isRehab=r=>r.status==='REFURBISHMENT'||!!CLOSURE_PERIODS[r.nm];
+ const sorted=[...rows].sort((a,b)=>(isRehab(a)?1:0)-(isRehab(b)?1:0));
+ return sorted.map(r=>{
   const dt=downtime[r.id];
   let red='';
   if(dt&&dt.periods.length)red=` <span style="color:#ff8a7a;font-weight:700">${dt.periods.map(p=>p.end?fmtMin(p.start)+'〜'+fmtMin(p.end):(r.status==='CLOSED'?fmtMin(p.start):fmtMin(p.start)+'〜')).join('・')}</span>`;
+  const rehab=isRehab(r);
   let pill=labelStatus(r.status),pillStyle='';
-  const preOpen=r.status==='CLOSED'&&tokyoMinutes()>=360&&tokyoMinutes()<parkRange.open;
+  const preOpen=!rehab&&r.status==='CLOSED'&&tokyoMinutes()>=360&&tokyoMinutes()<parkRange.open;
   if(preOpen)pill='オープン前';
-  const notYet=PREP_IDS.has(r.id)&&r.status==='CLOSED'&&!(dt&&!dt.allDay)&&!operatedToday.has(r.id);
+  const notYet=!rehab&&PREP_IDS.has(r.id)&&r.status==='CLOSED'&&!(dt&&!dt.allDay)&&!operatedToday.has(r.id);
   if(notYet)pill='準備中';
   const twoLine=t=>{pill+='<br>'+t;pillStyle='text-align:center;line-height:1.3'};
-  if(r.status==='REFURBISHMENT')twoLine('終日');
+  if(rehab){pill='リハブ終日';pillStyle='background:#6a3ec9;color:#f3eaff'}
   else if(r.status==='CLOSED'&&dt&&!preOpen&&!notYet){
    if(dt.allDay&&tokyoMinutes()>=parkRange.open)twoLine('終日');
    else if(dt.periods.length)twoLine(fmtMin(dt.periods[dt.periods.length-1].start));
   }
-  const period=r.status==='REFURBISHMENT'?CLOSURE_PERIODS[r.nm]:'';
+  const period=CLOSURE_PERIODS[r.nm]||'';
   const periodHtml=period?` <span style="color:#ffd9a0">休止期間 ${esc(period)}</span>`:'';
   return `<div class="row"><div><div class="rowname">${esc(r.nm)}</div><div class="rowmeta">運営状況${red}${periodHtml}</div></div><span class="status down" style="${pillStyle}">${pill}</span></div>`;
  }).join('');
