@@ -20,6 +20,24 @@ main{width:min(100%,720px);margin:auto;padding:12px 16px 26px}
 header{display:flex;justify-content:space-between;align-items:center;padding:8px 3px 8px;text-shadow:0 2px 8px #000}
 .brand{font-size:22px;font-weight:900;letter-spacing:.1em}.brand small{display:block;font-size:9px;letter-spacing:.22em;color:#f4d7a7;margin-top:2px}
 .live{font-size:10px;border:1px solid #b9dfc8;border-radius:30px;padding:7px 10px;background:#10241bbf;color:#c9f6d8}
+.hdr-date{font-size:16.5px;font-weight:800;letter-spacing:.03em}
+.hdr-parks{display:flex;flex-direction:column;gap:4px}
+.hdr-park{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700}
+.park-pill{font-size:10px;font-weight:900;letter-spacing:.06em;border-radius:20px;padding:2.5px 9px;color:#17202a}
+.park-pill.tdl{background:#ff9ecb}.park-pill.tds{background:#8ecbff}
+.hdr-hours.tdl{color:#ff9ecb}.hdr-hours.tds{color:#8ecbff}
+.greet-fold{margin-top:12px}
+.greet-fold summary{font-size:13px;font-weight:700;color:#f4d7a7;cursor:pointer;padding:6px 0;list-style:none}
+.greet-fold summary::-webkit-details-marker{display:none}
+.greet-fold summary::after{content:' \25B8';color:#9fb0bd}
+.greet-fold[open] summary::after{content:' \25BE'}
+.ride.tap{cursor:pointer}
+.graph-hint{font-size:10px;color:#8ecbff;font-weight:700;white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(4,8,12,.72);z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.modal-card{background:#1c2836;border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:640px;max-height:86vh;overflow:auto;padding:14px 14px calc(16px + env(safe-area-inset-bottom))}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.modal-head h3{margin:0;font-size:14.5px}
+.modal-close{background:#ffffff1c;border:1px solid var(--line);color:#fff;border-radius:50%;width:32px;height:32px;font-size:14px;cursor:pointer;flex:none}
 .amedas-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:9px 13px;margin:0 0 10px;box-shadow:0 6px 18px #0004;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:12px}
 .amedas-vals{display:flex;align-items:center;gap:14px}
 .amedas-item{display:flex;align-items:baseline;gap:4px}
@@ -100,7 +118,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <body>
 <div class="pull-ind" id="pullInd">↓ 引っ張って更新</div>
 <main>
-<header><div class="brand">DISNEY NAVI<small>THE PARK & WEATHER COMPASS</small></div><div class="live">● LIVE INFORMATION</div></header>
+<header><div class="hdr-date" id="hdrDate">----年--月--日（-）</div><div class="hdr-parks"><div class="hdr-park"><span class="park-pill tdl">TDL</span><span class="hdr-hours tdl" id="hdrTdlHours">取得中</span></div><div class="hdr-park"><span class="park-pill tds">TDS</span><span class="hdr-hours tds" id="hdrSeaHours">取得中</span></div></div></header>
 <div class="amedas-bar" id="amedasBar">
  <div class="amedas-vals">
   <div class="amedas-item"><span>気温</span><strong id="currentTemp">--<em> ℃</em></strong></div>
@@ -135,8 +153,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <section class="panel">
  <div class="panelhead"><h2>今日のショースケジュール</h2><span class="stamp" id="showStamp">CSV</span></div>
  <div id="showList" class="list"><div class="loading">ショースケジュールを取得しています…</div></div>
- <div class="panelhead" style="margin:14px 0 9px"><h2 style="font-size:13px">キャラクターグリーティング</h2></div>
- <div id="greetList" class="list"><div class="loading">グリーティング情報を取得しています…</div></div>
+ <details class="greet-fold"><summary>キャラクターグリーティング</summary><div id="greetList" class="list"><div class="loading">グリーティング情報を取得しています…</div></div></details>
 </section>
 
 <section class="panel">
@@ -160,13 +177,14 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <div class="footer"><span id="lastUpdated">データ取得中…</span><button class="refresh" id="refreshBtn">↻ 更新</button></div>
 <p class="note">気象庁・cultivationdata.net・Open-Meteo・ThemeParks.wikiのデータを利用した非公式ファン向け表示です。Powered by ThemeParks.wiki。</p>
 </main>
+<div class="modal" id="rideModal" style="display:none"><div class="modal-card"><div class="modal-head"><h3 id="rideModalTitle">待ち時間グラフ</h3><button class="modal-close" id="rideModalClose" aria-label="閉じる">✕</button></div><div id="rideModalBody"><div class="loading">読み込んでいます…</div></div></div></div>
 <script>
 const $=id=>document.getElementById(id);
 const TP='https://api.themeparks.wiki/v1';
 const JMA='https://www.jma.go.jp/bosai/forecast/data/forecast/120000.json';
 const AMEDAS='https://api.cultivationdata.net/amds?no=44136';
 const WEATHER='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=temperature_2m,precipitation,weather_code&forecast_days=2&timezone=Asia%2FTokyo&temperature_unit=celsius';
-let landPark=null,weather=null,dayIndex=0,parkEntities=[];
+let landPark=null,seaPark=null,weather=null,dayIndex=0,parkEntities=[];
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function dateTokyo(d=new Date()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)}
 function timeTokyo(s){const d=new Date(s);return isNaN(d)?'--':d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'})}
@@ -297,10 +315,12 @@ async function loadPark(){
  const children=tree.children||tree.entities||[];
  landPark=children.find(x=>x.entityType==='PARK'&&/Tokyo Disneyland|Disneyland|東京ディズニーランド/i.test(x.name||''));
  if(!landPark)throw Error('東京ディズニーランドのIDが見つかりません');
- const [live,schedule,treeData]=await Promise.all([json(TP+'/entity/'+landPark.id+'/live','待ち時間を取得できません'),json(TP+'/entity/'+landPark.id+'/schedule','営業時間を取得できません'),json(TP+'/entity/'+landPark.id+'/children','施設名を取得できません')]);
+ seaPark=children.find(x=>x.entityType==='PARK'&&x!==landPark&&/DisneySea|ディズニーシー/i.test(x.name||''))||null;
+ const [live,schedule,treeData,seaSchedule]=await Promise.all([json(TP+'/entity/'+landPark.id+'/live','待ち時間を取得できません'),json(TP+'/entity/'+landPark.id+'/schedule','営業時間を取得できません'),json(TP+'/entity/'+landPark.id+'/children','施設名を取得できません'),seaPark?json(TP+'/entity/'+seaPark.id+'/schedule','営業時間を取得できません'):Promise.resolve(null)]);
  parkEntities=treeData.children||treeData.entities||[];
  renderLive(live);
  renderHours(schedule.schedule||[]);
+ if(seaSchedule)renderSeaHours(seaSchedule.schedule||[]);
 }
 function labelStatus(s){return({OPERATING:'運営中',DOWN:'一時休止',CLOSED:'運営終了',REFURBISHMENT:'長期休止中'})[s]||'状況確認中'}
 function renderLive(data){
@@ -327,7 +347,7 @@ function renderLive(data){
   $('btmStatus').className='btm-status down';
  }
  const top=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime).slice(0,3);
- $('topRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
+ $('topRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride tap" data-ride-id="${esc(x.entityId||x.id||'')}" data-ride-name="${esc(name(x))}"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><span class="graph-hint">グラフ ›</span><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
  const tdStr=dateTokyo();
  if(operatedDate!==tdStr){operatedDate=tdStr;operatedToday=new Set()}
  rides.forEach(x=>{if(x.status==='OPERATING')operatedToday.add(x.entityId||x.id)});
@@ -590,10 +610,21 @@ function renderHours(schedule){
  const today=dateTokyo();
  const rows=schedule.filter(x=>x.date===today);
  const op=rows.find(x=>x.type==='OPERATING');
+ $('hdrTdlHours').textContent=op?`${timeTokyo(op.openingTime)}〜${timeTokyo(op.closingTime)}`:'未掲載';
  $('parkHours').innerHTML=op?`<div class="hourbox"><span>本日の営業時間</span><b>${timeTokyo(op.openingTime)} – ${timeTokyo(op.closingTime)}</b></div><div class="hourbox"><span>営業日</span><b>${today.replaceAll('-','/')}</b></div>`:`<div class="hourbox"><span>本日の営業時間</span><b>未掲載</b></div><div class="hourbox"><span>営業日</span><b>${today.replaceAll('-','/')}</b></div>`;
  if(op){parkRange={open:tokyoMinutes(new Date(op.openingTime)),close:tokyoMinutes(new Date(op.closingTime))}}
  renderBtmGraph();
  $('dateLabel').textContent='更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+}
+function renderSeaHours(schedule){
+ const today=dateTokyo();
+ const op=(schedule||[]).filter(x=>x.date===today).find(x=>x.type==='OPERATING');
+ $('hdrSeaHours').textContent=op?`${timeTokyo(op.openingTime)}〜${timeTokyo(op.closingTime)}`:'未掲載';
+}
+function renderHdrDate(){
+ const parts=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',weekday:'short'}).formatToParts(new Date());
+ const g=t=>(parts.find(x=>x.type===t)||{}).value||'';
+ const el=$('hdrDate');if(el)el.textContent=`${g('year')}年${g('month')}月${g('day')}日（${g('weekday')}）`;
 }
 const SHOWCSV='tdl_show_schedule.csv';
 const SHOW_HIDE=['ミッキーのレインボー・ルアウ'];
@@ -640,11 +671,103 @@ async function loadShows(){
   $('showStamp').textContent=today.replaceAll('-','/');
  }catch(e){$('greetList').innerHTML=`<div class="error">${esc(e.message||'取得エラー')}</div>`;throw e}
 }
+const rideHistCache={};
+function closeRideGraph(){const m=$('rideModal');if(m)m.style.display='none'}
+async function openRideGraph(id,nm){
+ if(!id)return;
+ const modal=$('rideModal');if(!modal)return;
+ modal.style.display='flex';
+ $('rideModalTitle').textContent=(nm||'')+' 待ち時間グラフ';
+ const body=$('rideModalBody');body.innerHTML='<div class="loading">本日の履歴を取得しています…</div>';
+ try{
+  let cache=rideHistCache[id];
+  if(!cache||Date.now()-cache.at>10*60*1000){
+   const data=await json(TP+'/entity/'+id+'/history?date='+dateTokyo(),'履歴を取得できません');
+   const rows=data.history||data.changes||[];
+   const pts=[];
+   const op=data.opening;
+   const opState=op&&(op.queue||op.status)?op:(op?Object.values(op)[0]:null);
+   if(opState)pts.push({m:parkRange.open,w:opState.status==='OPERATING'&&Number.isFinite(opState.queue?.STANDBY?.waitTime)?opState.queue.STANDBY.waitTime:null});
+   rows.forEach(r=>{if(!r.time)return;pts.push({m:tokyoMinutes(new Date(r.time)),w:r.status==='OPERATING'&&Number.isFinite(r.queue?.STANDBY?.waitTime)?r.queue.STANDBY.waitTime:null})});
+   cache={at:Date.now(),pts};rideHistCache[id]=cache;
+  }
+  renderRideGraph(body,cache.pts);
+ }catch(e){body.innerHTML=`<div class="error">${esc(e.message||'取得エラー')}</div>`}
+}
+function renderRideGraph(el,samplesIn){
+ const now=tokyoMinutes();
+ if(now<parkRange.open){el.innerHTML=`<div class="empty">オープン前です（開園 ${fmtMin(parkRange.open)}）</div>`;return}
+ let samples=(samplesIn||[]).slice().sort((a,b)=>a.m-b.m);
+ const {open,close}=parkRange;
+ const stops=[];{let cs=null;for(const p of samples){if(p.w==null){if(!cs)cs={start:p.m,end:null}}else if(cs){cs.end=p.m;stops.push(cs);cs=null}}if(cs)stops.push(cs)}
+ samples=samples.filter(x=>x.m>=open&&x.m<=close);
+ const waits=samples.filter(x=>x.w!=null).map(x=>x.w);
+ if(!waits.length){el.innerHTML='<div class="empty">本日の待ち時間の記録がまだありません</div>';return}
+ const W=640,H=190,pl=36,pr=10,pt=12,pb=24,iw=W-pl-pr,ih=H-pt-pb;
+ const yMax=Math.ceil(Math.max(60,...waits)/30)*30;
+ const X=m=>pl+(m-open)/(close-open)*iw;
+ const Y=w=>pt+ih-(w/yMax)*ih;
+ let g='';
+ for(let w=0;w<=yMax;w+=30){const y=Y(w);g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="rgba(255,255,255,.14)" stroke-width="1"/><text x="${pl-5}" y="${y+3}" fill="#c9d3db" font-size="9" text-anchor="end">${w}</text>`}
+ for(let m=Math.ceil(open/60)*60;m<=close;m+=60){const x=X(m);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="rgba(255,255,255,.06)" stroke-width="1"/><text x="${x}" y="${H-8}" fill="#c9d3db" font-size="9" text-anchor="middle">${fmtMin(m)}</text>`}
+ if(now>=open&&now<=close){const x=X(now);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="#8ecbff" stroke-width="1" stroke-dasharray="3 3"/><text x="${x}" y="${pt-2}" fill="#8ecbff" font-size="9" text-anchor="middle">現在</text>`}
+ let seg=[];
+ const flush=()=>{
+  if(seg.length){
+   const pts=[];
+   seg.forEach((p,i)=>{
+    if(i===0)pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`);
+    else{pts.push(`${X(p.m).toFixed(1)},${Y(seg[i-1].w).toFixed(1)}`);pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`)}
+   });
+   const lp=seg[seg.length-1];
+   if(pts.length>=2){g+=`<polygon points="${X(seg[0].m).toFixed(1)},${Y(0)} ${pts.join(' ')} ${X(lp.m).toFixed(1)},${Y(0)}" fill="rgba(255,215,139,.13)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#ffd78b" stroke-width="2" stroke-linejoin="round" stroke-linecap="square"/>`}
+   else{g+=`<circle cx="${X(seg[0].m)}" cy="${Y(seg[0].w)}" r="3" fill="#ffd78b"/>`}
+  }
+  seg=[];
+ };
+ samples.forEach(p=>{if(p.w==null)flush();else seg.push(p)});flush();
+ const valid=samples.filter(x=>x.w!=null);
+ const lp=valid[valid.length-1];
+ g+=`<circle cx="${X(lp.m)}" cy="${Y(lp.w)}" r="4" fill="#ffd78b" stroke="#17202a" stroke-width="1.5"/><text x="${Math.min(X(lp.m),W-40)}" y="${Math.max(Y(lp.w)-8,10)}" fill="#ffe0a5" font-size="11" font-weight="bold" text-anchor="middle">${lp.w}分</text>`;
+ el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img">${g}<g class="rg-guide" style="display:none"><line class="rg-line" y1="${pt}" y2="${pt+ih}" stroke="#ffffff" stroke-width="1" opacity="0.75"/><circle class="rg-dot" r="5" fill="#ffffff" stroke="#ffd78b" stroke-width="2"/></g></svg><div class="rg-readout" style="font-size:12.5px;color:#ffe0a5;font-weight:700;min-height:17px;margin-top:6px"></div><div style="font-size:11px;color:#e4e8eb;margin-top:6px">現在 ${lp.w}分 ／ 最高 ${Math.max(...waits)}分 ／ 平均 ${Math.round(waits.reduce((a,b)=>a+b,0)/waits.length)}分（記録 ${samples.length}件）</div>`;
+ const stopTxt=[];
+ stops.filter(st=>st.start>open).forEach(st=>{
+  if(st.end!=null)stopTxt.push(`一時運営中止 ${fmtMin(st.start)}〜${fmtMin(st.end)}`);
+  else if(st.start>=close-15)stopTxt.push(`ラインカット ${fmtMin(Math.min(st.start,close))}`);
+  else if(now>close)stopTxt.push(`運営終了 ${fmtMin(st.start)}`);
+  else stopTxt.push(`一時運営中止 ${fmtMin(st.start)}〜継続中`);
+ });
+ if(!stopTxt.length&&now>close)stopTxt.push(`ラインカット ${fmtMin(close)}`);
+ if(stopTxt.length)el.innerHTML+=`<div style="font-size:11px;color:#ffb37f;margin-top:4px">${stopTxt.join(' ／ ')}</div>`;
+ const svgEl=el.querySelector('svg');
+ if(svgEl){
+  const showAt=clientX=>{
+   const rect=svgEl.getBoundingClientRect();if(!rect.width)return;
+   const vx=(clientX-rect.left)/rect.width*W;
+   const mins=open+(vx-pl)/iw*(close-open);
+   let cur=null;
+   for(const p of samples){if(p.m<=mins)cur=p;else break}
+   const gEl=svgEl.querySelector('.rg-guide');if(!gEl)return;
+   const ro=el.querySelector('.rg-readout');
+   if(!cur||cur.w==null||mins>samples[samples.length-1].m){gEl.style.display='none';if(ro)ro.textContent='';return}
+   const cx=pl+(Math.min(Math.max(mins,open),close)-open)/(close-open)*iw;
+   const cy=pt+ih-(cur.w/yMax)*ih;
+   gEl.style.display='';
+   const ln=svgEl.querySelector('.rg-line');ln.setAttribute('x1',cx);ln.setAttribute('x2',cx);
+   const dt=svgEl.querySelector('.rg-dot');dt.setAttribute('cx',cx);dt.setAttribute('cy',cy);
+   if(ro)ro.textContent=fmtMin(Math.round(mins))+' → 待ち時間 '+cur.w+'分';
+  };
+  svgEl.addEventListener('touchstart',e=>{showAt(e.touches[0].clientX)},{passive:true});
+  svgEl.addEventListener('touchmove',e=>{if(e.cancelable)e.preventDefault();showAt(e.touches[0].clientX)},{passive:false});
+  svgEl.addEventListener('mousemove',e=>{showAt(e.clientX)});
+ }
+}
 async function refresh(){
  const b=$('refreshBtn');b.disabled=true;b.textContent='更新中…';
  const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods]];
  const out=await Promise.allSettled(jobs.map(x=>x[1]()));
  out.forEach((r,i)=>{if(r.status==='rejected'){const id=jobs[i][0];const map={jma:'jmaSummary',hourly:'hourly',amedas:'amedasTime',park:'topRides',shows:'showList'};if(id==='amedas'){$('amedasTime').textContent='取得エラー'}else{$(map[id]).innerHTML=`<div class="error">${esc(r.reason?.message||'取得エラー')}</div>`}}});
+ renderHdrDate();
  $('lastUpdated').textContent='最終更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
  b.disabled=false;b.textContent='↻ 更新';
 }
@@ -682,6 +805,10 @@ async function checkPageUpdate(){
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkPageUpdate()});
 window.addEventListener('pageshow',checkPageUpdate);
 setInterval(checkPageUpdate,15*60*1000);
+$('topRides').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName)});
+$('rideModalClose').addEventListener('click',closeRideGraph);
+$('rideModal').addEventListener('click',e=>{if(e.target===$('rideModal'))closeRideGraph()});
+renderHdrDate();
 $('refreshBtn').onclick=refresh;
 refresh();setInterval(refresh,5*60*1000);
 </script>
