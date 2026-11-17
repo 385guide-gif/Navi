@@ -448,6 +448,7 @@ async function loadBtmHistory(){
  }catch(e){/* 履歴が取れない場合は端末内の記録のみで表示 */}
 }
 function recordBtm(wait,status){
+ if(tokyoMinutes()<parkRange.open){renderBtmGraph();return}
  const samples=loadBtmSamples();
  const now=tokyoMinutes();
  const last=samples[samples.length-1];
@@ -459,6 +460,13 @@ function recordBtm(wait,status){
 function fmtMin(m){return Math.floor(m/60)+':'+String(m%60).padStart(2,'0')}
 function renderBtmGraph(){
  const el=$('btmGraph');if(!el)return;
+ const preNow=tokyoMinutes();
+ if(preNow<parkRange.open){
+  try{const rk='btmReset_'+dateTokyo();if(!localStorage.getItem(rk)){localStorage.removeItem(btmKey());localStorage.setItem(rk,'1');btmHistory=[];btmHistoryAt=0}}catch(e){}
+  btmChart=null;
+  el.innerHTML=`<div class="empty">オープン前です（開園 ${fmtMin(parkRange.open)}）</div>`;
+  return;
+ }
  let samples=loadBtmSamples().slice();
  if(btmHistory.length){const lastH=Math.max(...btmHistory.map(x=>x.m));samples=btmHistory.concat(samples.filter(x=>x.m>lastH))}
  samples.sort((a,b)=>a.m-b.m);
