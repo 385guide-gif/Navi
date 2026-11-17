@@ -483,10 +483,10 @@ function renderBtmGraph(){
  const palette=['#ff9ecb','#8ecbff','#c39bff','#7fe0b2','#ffb37f'];
  const colorOf={}; let ci=0;
  const shortName=n=>n.includes('トイズ')?'トイズ':n.includes('ハーモニー')?'ハーモニー':n.includes('エレクトリカル')?'エレクトリカル':n.includes('スターブライト')?'花火':n;
- paradeBands.filter(b=>b.start<close&&b.start+40>open&&b.start<tokyoMinutes()).sort((a,b)=>a.start-b.start).forEach(b=>{
+ paradeBands.filter(b=>b.start<close&&b.start+40>open).sort((a,b)=>a.start-b.start).forEach(b=>{
   if(!(b.name in colorOf))colorOf[b.name]=palette[ci++%palette.length];
   const c=colorOf[b.name];
-  const x1=X(Math.max(b.start,open)),x2=X(Math.min(b.start+40,close,tokyoMinutes()));
+  const x1=X(Math.max(b.start,open)),x2=X(Math.min(b.start+40,close));
   g+=`<rect x="${x1.toFixed(1)}" y="${pt}" width="${Math.max(x2-x1,2).toFixed(1)}" height="${ih}" fill="${c}" opacity="0.16"/><text x="${(x1+3).toFixed(1)}" y="${pt+10}" fill="${c}" font-size="8.5" font-weight="bold">${shortName(b.name)}</text>`;
  });
 
@@ -503,7 +503,7 @@ function renderBtmGraph(){
     else{pts.push(`${X(p.m).toFixed(1)},${Y(seg[i-1].w).toFixed(1)}`);pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`)}
    });
    const lp=seg[seg.length-1];
-   const endM=isLast?Math.min(Math.max(now,lp.m),close):lp.m;
+   const endM=lp.m;
    if(endM>lp.m)pts.push(`${X(endM).toFixed(1)},${Y(lp.w).toFixed(1)}`);
    if(pts.length>=2){g+=`<polygon points="${X(seg[0].m).toFixed(1)},${Y(0)} ${pts.join(' ')} ${X(endM).toFixed(1)},${Y(0)}" fill="rgba(255,215,139,.13)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#ffd78b" stroke-width="2" stroke-linejoin="round" stroke-linecap="square"/>`}
    else{g+=`<circle cx="${X(seg[0].m)}" cy="${Y(seg[0].w)}" r="3" fill="#ffd78b"/>`}
@@ -536,7 +536,7 @@ function renderBtmGraph(){
    let cur=null;
    for(const p of btmChart.samples){if(p.m<=mins)cur=p;else break}
    const gEl=svgEl.querySelector('#btmGuideG');if(!gEl)return;
-   if(!cur||cur.w==null){gEl.style.display='none';return}
+   if(!cur||cur.w==null||mins>btmChart.samples[btmChart.samples.length-1].m){gEl.style.display='none';const ro0=$('btmReadout');if(ro0)ro0.textContent='';return}
    const cx=btmChart.pl+(Math.min(Math.max(mins,btmChart.open),btmChart.close)-btmChart.open)/(btmChart.close-btmChart.open)*btmChart.iw;
    const cy=btmChart.pt+btmChart.ih-(cur.w/btmChart.yMax)*btmChart.ih;
    gEl.style.display='';
