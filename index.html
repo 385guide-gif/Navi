@@ -812,6 +812,8 @@ function pickBackground(nowMin,srMin,ssMin,code,precip){
  else period='night';
  const raining=((code>=51&&code<=67)||(code>=80&&code<=82)||code>=95||Number(precip||0)>0);
  if(raining)return period==='night'?'bg_night_rain.jpg':'bg_rain.jpg';
+ const cloudy=(code===2||code===3||code===45||code===48);
+ if(cloudy)return period==='night'?'bg_night_cloudy.jpg':'bg_cloudy.jpg';
  return 'bg_'+period+'.jpg';
 }
 let bgFile='',bgActive=0;
