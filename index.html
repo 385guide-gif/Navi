@@ -356,7 +356,7 @@ function updateBtmEndTime(){
  const el=$('btmStatus');if(el){el.innerHTML='運営終了<br>'+t;el.style.textAlign='center';el.style.lineHeight='1.3'}
 }
 let downtime={},downtimeFetchedAt=0,downtimeLoading=false,lastDown=[];
-const CLOSURE_PERIODS={
+const CLOSURE_EMBED={
  'スイスファミリー・ツリーハウス':'2022年4月1日～未定',
  'シンデレラのフェアリーテイル・ホール':'2026年10月1日～未定',
  'スティッチ・エンカウンター':'2026年11月2日～11月30日',
@@ -364,6 +364,17 @@ const CLOSURE_PERIODS={
  "Cinderella's Fairy Tale Hall":'2026年10月1日～未定',
  'Stitch Encounter':'2026年11月2日～11月30日'
 };
+let CLOSURE_PERIODS={...CLOSURE_EMBED};
+async function loadClosurePeriods(){
+ try{
+  const r=await fetch(CLOSURECSV,{cache:'no-store'});
+  if(!r.ok)return;
+  const rows=parseCsv(await r.text());
+  const map={};
+  rows.forEach(x=>{if(x.name&&x.period)map[x.name]=x.period});
+  if(Object.keys(map).length){CLOSURE_PERIODS=map;if(lastDown.length)$('closedRides').innerHTML=closedRidesHtml(lastDown)}
+ }catch(e){}
+}
 function computeDowntime(data){
  const pts=[];
  const op=data.opening;
@@ -569,6 +580,8 @@ function renderHours(schedule){
  $('dateLabel').textContent='更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
 }
 const SHOWCSV='tdl_show_schedule.csv';
+const SHOW_HIDE=['ミッキーのレインボー・ルアウ'];
+const CLOSURECSV='tdl_closure_periods.csv';
 function parseCsv(text){
  const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/);
  const head=lines[0].split(',');
@@ -590,7 +603,7 @@ async function loadShows(){
   const rows=parseCsv(await r.text());
   const today=dateTokyo();
   const mine=rows.filter(x=>x.date===today);
-  const shows=mine.filter(x=>x.category==='パレード/ショー');
+  const shows=mine.filter(x=>x.category==='パレード/ショー'&&!SHOW_HIDE.includes(x.name));
   const greets=mine.filter(x=>x.category==='キャラクターグリーティング');
   const badges=x=>`${x.premier_access==='○'?'<span class="badge pa">プレミアアクセス</span>':''}${x.entry_reception==='○'?'<span class="badge en">エントリー受付</span>':''}${x.reservation_required==='○'?'<span class="badge rs">予約必須</span>':''}`;
   const firstTime=x=>{const m=(x.times||'').match(/\d{1,2}:\d{2}/);return m?m[0].padStart(5,'0'):'99:99'};
@@ -613,7 +626,7 @@ async function loadShows(){
 }
 async function refresh(){
  const b=$('refreshBtn');b.disabled=true;b.textContent='更新中…';
- const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows]];
+ const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods]];
  const out=await Promise.allSettled(jobs.map(x=>x[1]()));
  out.forEach((r,i)=>{if(r.status==='rejected'){const id=jobs[i][0];const map={jma:'jmaSummary',hourly:'hourly',amedas:'amedasTime',park:'topRides',shows:'showList'};if(id==='amedas'){$('amedasTime').textContent='取得エラー'}else{$(map[id]).innerHTML=`<div class="error">${esc(r.reason?.message||'取得エラー')}</div>`}}});
  $('lastUpdated').textContent='最終更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
