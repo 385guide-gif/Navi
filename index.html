@@ -241,6 +241,17 @@ async function loadJma(){
    else if(dStr===tomorrowStr){if(hr>=6)tomorrowMax=val;else tomorrowMin=val;}
   });
  }
+ // 気象庁は当日の朝の発表では今日の最低気温の枠に最高気温と同じ値を入れるため、
+ // 今日の最低は前日に「明日の最低」として発表された値を端末内に保存して使う
+ try{
+  if(tomorrowMin!=='--')localStorage.setItem('jmaFc_'+tomorrowStr,JSON.stringify({min:tomorrowMin,max:tomorrowMax}));
+  const cached=JSON.parse(localStorage.getItem('jmaFc_'+todayStr)||'null');
+  if(cached){
+   if(todayMax==='--'&&cached.max&&cached.max!=='--')todayMax=cached.max;
+   if((todayMin==='--'||todayMin===todayMax)&&cached.min&&cached.min!=='--')todayMin=cached.min;
+  }
+  if(todayMin!=='--'&&todayMin===todayMax)todayMin='--';
+ }catch(e){}
 
  const timeDefines=weatherSeries.timeDefines||[];
  const codes=w.weatherCodes||[];
@@ -541,13 +552,14 @@ function renderBtmGraph(){
  if(btmHistory.length){const lastH=Math.max(...btmHistory.map(x=>x.m));samples=btmHistory.concat(samples.filter(x=>x.m>lastH))}
  samples.sort((a,b)=>a.m-b.m);
  const {open,close}=parkRange;
+ const x0=open-15,x1=close+15;
  const stops=[];{let cs=null;for(const p of samples){if(p.w==null){if(!cs)cs={start:p.m,end:null}}else if(cs){cs.end=p.m;stops.push(cs);cs=null}}if(cs)stops.push(cs)}
  samples=samples.filter(x=>x.m>=open&&x.m<=close);
  const W=640,H=190,pl=36,pr=10,pt=12,pb=24,iw=W-pl-pr,ih=H-pt-pb;
  const waits=samples.filter(x=>x.w!=null).map(x=>x.w);
  const maxW=Math.max(60,...waits);
  const yMax=Math.ceil(maxW/30)*30;
- const X=m=>pl+(m-open)/(close-open)*iw;
+ const X=m=>pl+(m-x0)/(x1-x0)*iw;
  const Y=w=>pt+ih-(w/yMax)*ih;
  let g='';
  const palette=['#ff9ecb','#8ecbff','#c39bff','#7fe0b2','#ffb37f'];
@@ -561,7 +573,7 @@ function renderBtmGraph(){
  });
 
  for(let w=0;w<=yMax;w+=30){const y=Y(w);g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="rgba(255,255,255,.14)" stroke-width="1"/><text x="${pl-5}" y="${y+3}" fill="#c9d3db" font-size="9" text-anchor="end">${w}</text>`}
- for(let m=Math.ceil(open/60)*60;m<=close;m+=60){const x=X(m);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="rgba(255,255,255,.06)" stroke-width="1"/><text x="${x}" y="${H-8}" fill="#c9d3db" font-size="9" text-anchor="middle">${fmtMin(m)}</text>`}
+ for(let m=Math.ceil(x0/60)*60;m<=x1;m+=60){const x=X(m);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="rgba(255,255,255,.06)" stroke-width="1"/><text x="${x}" y="${H-8}" fill="#c9d3db" font-size="9" text-anchor="middle">${fmtMin(m)}</text>`}
  const now=tokyoMinutes();
  if(now>=open&&now<=close){const x=X(now);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="#8ecbff" stroke-width="1" stroke-dasharray="3 3"/><text x="${x}" y="${pt-2}" fill="#8ecbff" font-size="9" text-anchor="middle">現在</text>`}
  let seg=[];
@@ -583,7 +595,7 @@ function renderBtmGraph(){
  samples.forEach(p=>{if(p.w==null){flush(false)}else{seg.push(p)}});flush(true);
  const valid=samples.filter(x=>x.w!=null);
  if(valid.length){const lp=valid[valid.length-1];g+=`<circle cx="${X(lp.m)}" cy="${Y(lp.w)}" r="4" fill="#ffd78b" stroke="#17202a" stroke-width="1.5"/><text x="${Math.min(X(lp.m),W-40)}" y="${Math.max(Y(lp.w)-8,10)}" fill="#ffe0a5" font-size="11" font-weight="bold" text-anchor="middle">${lp.w}分</text>`}
- btmChart={samples,open,close,W,H,pl,pr,pt,ih,iw,yMax};
+ btmChart={samples,open:x0,close:x1,W,H,pl,pr,pt,ih,iw,yMax};
  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="ビッグサンダー・マウンテン待ち時間グラフ">${g}<g id="btmGuideG" style="display:none"><line id="btmGuideLine" y1="${pt}" y2="${pt+ih}" stroke="#ffffff" stroke-width="1" opacity="0.75"/><circle id="btmGuideDot" r="5" fill="#ffffff" stroke="#ffd78b" stroke-width="2"/></g></svg><div id="btmReadout" style="font-size:12.5px;color:#ffe0a5;font-weight:700;min-height:17px;margin-top:6px"></div>`+(valid.length?`<div style="font-size:11px;color:#e4e8eb;margin-top:6px">現在 ${valid[valid.length-1].w}分 ／ 最高 ${Math.max(...waits)}分 ／ 平均 ${Math.round(waits.reduce((a,b)=>a+b,0)/waits.length)}分（記録 ${samples.length}件）</div>`:'<div class="empty">本日の履歴を読み込んでいます…</div>');
  const stopTxt=[];
  stops.filter(st=>st.start>open).forEach(st=>{
