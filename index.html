@@ -634,6 +634,22 @@ async function refresh(){
   show(-70,'↓ 引っ張って更新');
  });
 })();
+const pageLoadedAt=Date.now();
+const pageLM=Date.parse(document.lastModified)||0;
+let updateChecking=false;
+async function checkPageUpdate(){
+ if(updateChecking||Date.now()-pageLoadedAt<10*60*1000)return;
+ updateChecking=true;
+ try{
+  const r=await fetch(location.href,{method:'HEAD',cache:'no-store'});
+  const lm=Date.parse(r.headers.get('last-modified')||'')||0;
+  if(lm&&pageLM&&lm>pageLM+2000){location.replace(location.pathname+'?v='+Date.now());return}
+ }catch(e){}
+ updateChecking=false;
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkPageUpdate()});
+window.addEventListener('pageshow',checkPageUpdate);
+setInterval(checkPageUpdate,15*60*1000);
 $('refreshBtn').onclick=refresh;
 refresh();setInterval(refresh,5*60*1000);
 </script>
