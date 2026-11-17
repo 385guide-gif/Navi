@@ -483,10 +483,10 @@ function renderBtmGraph(){
  const palette=['#ff9ecb','#8ecbff','#c39bff','#7fe0b2','#ffb37f'];
  const colorOf={}; let ci=0;
  const shortName=n=>n.includes('トイズ')?'トイズ':n.includes('ハーモニー')?'ハーモニー':n.includes('エレクトリカル')?'エレクトリカル':n.includes('スターブライト')?'花火':n;
- paradeBands.filter(b=>b.start<close&&b.start+40>open).sort((a,b)=>a.start-b.start).forEach(b=>{
+ paradeBands.filter(b=>b.start<close&&b.start+40>open&&b.start<tokyoMinutes()).sort((a,b)=>a.start-b.start).forEach(b=>{
   if(!(b.name in colorOf))colorOf[b.name]=palette[ci++%palette.length];
   const c=colorOf[b.name];
-  const x1=X(Math.max(b.start,open)),x2=X(Math.min(b.start+40,close));
+  const x1=X(Math.max(b.start,open)),x2=X(Math.min(b.start+40,close,tokyoMinutes()));
   g+=`<rect x="${x1.toFixed(1)}" y="${pt}" width="${Math.max(x2-x1,2).toFixed(1)}" height="${ih}" fill="${c}" opacity="0.16"/><text x="${(x1+3).toFixed(1)}" y="${pt+10}" fill="${c}" font-size="8.5" font-weight="bold">${shortName(b.name)}</text>`;
  });
 
