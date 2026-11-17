@@ -21,6 +21,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:8px
 .brand{font-size:22px;font-weight:900;letter-spacing:.1em}.brand small{display:block;font-size:9px;letter-spacing:.22em;color:#f4d7a7;margin-top:2px}
 .live{font-size:10px;border:1px solid #b9dfc8;border-radius:30px;padding:7px 10px;background:#10241bbf;color:#c9f6d8}
 .hdr-date{font-size:16.5px;font-weight:800;letter-spacing:.03em}
+.hdr-left{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0}
+.hdr-weather{font-size:13.5px;font-weight:700;color:#fff;white-space:nowrap;text-shadow:0 2px 8px #000}
 .hdr-parks{display:flex;flex-direction:column;gap:4px}
 .hdr-park{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700}
 .park-pill{font-size:10px;font-weight:900;letter-spacing:.06em;border-radius:20px;padding:2.5px 9px;color:#17202a}
@@ -111,14 +113,14 @@ h2{font-size:15px;margin:0;font-weight:850;letter-spacing:.02em}
 .note{font-size:9px;line-height:1.6;color:#c1cbd3;margin:10px 2px 0}
 .footer{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px;color:#d5dce2;font-size:10px}
 button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font-weight:850;padding:10px 13px;font-size:11px}
-@media(min-width:600px){main{padding-left:22px;padding-right:22px}.hero{min-height:280px}h1{font-size:38px}.panel{padding:18px}.btm-wait-card{min-width:155px;padding:16px 22px}.btm-wait-card .btm-time{font-size:56px}}
+@media(min-width:600px){main{padding-left:22px;padding-right:22px}.hero{min-height:180px}h1{font-size:38px}.panel{padding:18px}.btm-wait-card{min-width:155px;padding:16px 22px}.btm-wait-card .btm-time{font-size:56px}}
 .pull-ind{position:fixed;top:10px;left:50%;transform:translate(-50%,-70px);background:rgba(20,26,34,.94);border:1px solid rgba(255,215,139,.55);color:#ffe0a5;padding:7px 16px;border-radius:999px;font-size:12px;z-index:60;transition:transform .18s ease;pointer-events:none;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 </style>
 </head>
 <body>
 <div class="pull-ind" id="pullInd">↓ 引っ張って更新</div>
 <main>
-<header><div class="hdr-date" id="hdrDate">----年--月--日（-）</div><div class="hdr-parks"><div class="hdr-park"><span class="park-pill tdl">TDL</span><span class="hdr-hours tdl" id="hdrTdlHours">取得中</span></div><div class="hdr-park"><span class="park-pill tds">TDS</span><span class="hdr-hours tds" id="hdrSeaHours">取得中</span></div></div></header>
+<header><div class="hdr-left"><div class="hdr-date" id="hdrDate">----年--月--日（-）</div><div class="hdr-weather" id="hdrWeather"></div></div><div class="hdr-parks"><div class="hdr-park"><span class="park-pill tdl">TDL</span><span class="hdr-hours tdl" id="hdrTdlHours">取得中</span></div><div class="hdr-park"><span class="park-pill tds">TDS</span><span class="hdr-hours tds" id="hdrSeaHours">取得中</span></div></div></header>
 <div class="amedas-bar" id="amedasBar">
  <div class="amedas-vals">
   <div class="amedas-item"><span>気温</span><strong id="currentTemp">--<em> ℃</em></strong></div>
@@ -127,7 +129,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
  </div>
  <div class="amedas-meta">アメダス観測所 44136（<span id="amedasTime">--</span>）</div>
  <div class="fw-row">
-  <div class="fw-head"><span>🎆 花火キャンセル確度</span><span class="fw-sub">スターブライト・クリスマス 20:30</span><strong id="fwPct">--%</strong></div>
+  <div class="fw-head"><span>🎆 花火実施予測</span><span class="fw-sub">スターブライト・クリスマス 20:30</span><strong id="fwPct">--%</strong></div>
   <div class="fw-track"><div class="fw-fill" id="fwFill"></div></div>
   <div class="fw-reason" id="fwReason">観測データを取得しています…</div>
  </div>
@@ -147,12 +149,9 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 </section>
 
 <section class="panel">
- <div class="panelhead"><h2>今日のパーク運営時間</h2><span class="stamp" id="dateLabel">取得中</span></div>
- <div class="hours" id="parkHours"><div class="loading">営業時間を取得しています…</div></div>
-</section>
-<section class="panel">
  <div class="panelhead"><h2>今日のショースケジュール</h2><span class="stamp" id="showStamp">CSV</span></div>
  <div id="showList" class="list"><div class="loading">ショースケジュールを取得しています…</div></div>
+ <details class="greet-fold"><summary>その他のショー</summary><div id="otherShowList" class="list"><div class="loading">ショー情報を取得しています…</div></div></details>
  <details class="greet-fold"><summary>キャラクターグリーティング</summary><div id="greetList" class="list"><div class="loading">グリーティング情報を取得しています…</div></div></details>
 </section>
 
@@ -243,6 +242,8 @@ async function loadJma(){
    ${dayAfterCode?`<div class="jma-day"><span>明後日</span><span class="jma-emoji" title="${esc(dayAfterText||'')}">${jmaEmoji(dayAfterText,dayAfterCode)}</span><b style="font-size:10px;color:#9fb0bd">気温予報なし</b></div>`:''}
   </div>
  `;
+ const hw=$('hdrWeather');
+ if(hw){const hp=[jmaEmoji(w.weathers?.[0],todayCode)];if(todayMax!=='--'||todayMin!=='--')hp.push(todayMax+'° / '+todayMin+'°');hw.textContent=hp.join(' ')}
  $('jmaStamp').textContent='発表 '+new Date(shortTerm.reportDatetime).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'});
 }
 async function loadHourly(){
@@ -292,8 +293,9 @@ function renderFireworks(){
  else if(group==='other'&&v>=6)reason=`風速 ${v} m/s と強く、花火玉の軌道が逸れる条件です`;
  else if(rain==='大雨')reason='20時頃の雨が強まる予報です（風の条件は問題なし）';
  else reason=`${dirName} ${v} m/s。風の条件は開催に支障なさそうです`;
- $('fwPct').textContent=p+'%';
- const fill=$('fwFill');fill.style.width=p+'%';fill.style.background=`hsl(${100-p} 85% 52%)`;
+ const go=100-p;
+ $('fwPct').textContent=go+'%';
+ const fill=$('fwFill');fill.style.width=go+'%';fill.style.background=`hsl(${go} 85% 52%)`;
  $('fwReason').textContent=reason+'（現在の観測に基づく目安です）';
 }
 async function loadAmedas(){
@@ -611,10 +613,8 @@ function renderHours(schedule){
  const rows=schedule.filter(x=>x.date===today);
  const op=rows.find(x=>x.type==='OPERATING');
  $('hdrTdlHours').textContent=op?`${timeTokyo(op.openingTime)}〜${timeTokyo(op.closingTime)}`:'未掲載';
- $('parkHours').innerHTML=op?`<div class="hourbox"><span>本日の営業時間</span><b>${timeTokyo(op.openingTime)} – ${timeTokyo(op.closingTime)}</b></div><div class="hourbox"><span>営業日</span><b>${today.replaceAll('-','/')}</b></div>`:`<div class="hourbox"><span>本日の営業時間</span><b>未掲載</b></div><div class="hourbox"><span>営業日</span><b>${today.replaceAll('-','/')}</b></div>`;
  if(op){parkRange={open:tokyoMinutes(new Date(op.openingTime)),close:tokyoMinutes(new Date(op.closingTime))}}
  renderBtmGraph();
- $('dateLabel').textContent='更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
 }
 function renderSeaHours(schedule){
  const today=dateTokyo();
@@ -666,7 +666,12 @@ async function loadShows(){
    });
   });
   renderBtmGraph();
-  $('showList').innerHTML=shows.length?shows.map(x=>`<div class="row"><div><div class="rowname">${esc(x.name)}${badges(x)}</div><div class="showtimes">${esc(x.times||x.note||'')}</div></div></div>`).join(''):'<div class="empty">この日のショースケジュールはCSVに含まれていません</div>';
+  const rowHtml=x=>`<div class="row"><div><div class="rowname">${esc(x.name)}${badges(x)}</div><div class="showtimes">${esc(x.times||x.note||'')}</div></div></div>`;
+  const isMainShow=x=>isParade(x.name)||/スターブライト|花火/.test(x.name||'');
+  const mainShows=shows.filter(isMainShow);
+  const otherShows=shows.filter(x=>!isMainShow(x));
+  $('showList').innerHTML=mainShows.length?mainShows.map(rowHtml).join(''):'<div class="empty">この日のパレード・花火はありません</div>';
+  $('otherShowList').innerHTML=otherShows.length?otherShows.map(rowHtml).join(''):'<div class="empty">その他のショーはありません</div>';
   $('greetList').innerHTML=greets.length?greets.map(x=>`<div class="row"><div><div class="rowname">${esc(x.name)}</div><div class="rowmeta">${esc(x.times||'')}</div></div></div>`).join(''):'<div class="empty">この日のグリーティング情報はCSVに含まれていません</div>';
   $('showStamp').textContent=today.replaceAll('-','/');
  }catch(e){$('greetList').innerHTML=`<div class="error">${esc(e.message||'取得エラー')}</div>`;throw e}
