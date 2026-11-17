@@ -721,25 +721,51 @@ function renderRideGraph(el,samplesIn){
  for(let w=0;w<=yMax;w+=30){const y=Y(w);g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="rgba(255,255,255,.14)" stroke-width="1"/><text x="${pl-5}" y="${y+3}" fill="#c9d3db" font-size="9" text-anchor="end">${w}</text>`}
  for(let m=Math.ceil(open/60)*60;m<=close;m+=60){const x=X(m);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="rgba(255,255,255,.06)" stroke-width="1"/><text x="${x}" y="${H-8}" fill="#c9d3db" font-size="9" text-anchor="middle">${fmtMin(m)}</text>`}
  if(now>=open&&now<=close){const x=X(now);g+=`<line x1="${x}" y1="${pt}" x2="${x}" y2="${pt+ih}" stroke="#8ecbff" stroke-width="1" stroke-dasharray="3 3"/><text x="${x}" y="${pt-2}" fill="#8ecbff" font-size="9" text-anchor="middle">現在</text>`}
- let seg=[];
- const flush=()=>{
-  if(seg.length){
+ const drawEnd=Math.min(Math.max(now,samples[samples.length-1].m),close);
+ const runs=[];
+ {let cur=null,prevW=null;
+  samples.forEach((p,i)=>{
+   const nextM=i+1<samples.length?samples[i+1].m:drawEnd;
+   if(p.w!=null){
+    if(!cur||cur.type!=='op'){cur={type:'op',pts:[],end:nextM};runs.push(cur)}
+    cur.pts.push(p);prevW=p.w;
+   }else{
+    if(!cur||cur.type!=='down'){cur={type:'down',start:p.m,end:nextM,prevW};runs.push(cur)}
+   }
+   cur.end=nextM;
+  });
+ }
+ runs.forEach((r,ri)=>{
+  if(r.type==='op'){
    const pts=[];
-   seg.forEach((p,i)=>{
+   r.pts.forEach((p,i)=>{
     if(i===0)pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`);
-    else{pts.push(`${X(p.m).toFixed(1)},${Y(seg[i-1].w).toFixed(1)}`);pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`)}
+    else{pts.push(`${X(p.m).toFixed(1)},${Y(r.pts[i-1].w).toFixed(1)}`);pts.push(`${X(p.m).toFixed(1)},${Y(p.w).toFixed(1)}`)}
    });
-   const lp=seg[seg.length-1];
-   if(pts.length>=2){g+=`<polygon points="${X(seg[0].m).toFixed(1)},${Y(0)} ${pts.join(' ')} ${X(lp.m).toFixed(1)},${Y(0)}" fill="rgba(255,215,139,.13)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#ffd78b" stroke-width="2" stroke-linejoin="round" stroke-linecap="square"/>`}
-   else{g+=`<circle cx="${X(seg[0].m)}" cy="${Y(seg[0].w)}" r="3" fill="#ffd78b"/>`}
+   const lw=r.pts[r.pts.length-1].w;
+   pts.push(`${X(r.end).toFixed(1)},${Y(lw).toFixed(1)}`);
+   g+=`<polygon points="${X(r.pts[0].m).toFixed(1)},${Y(0)} ${pts.join(' ')} ${X(r.end).toFixed(1)},${Y(0)}" fill="rgba(255,215,139,.13)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#ffd78b" stroke-width="2" stroke-linejoin="round" stroke-linecap="square"/>`;
+  }else{
+   const rp=[];
+   if(r.prevW!=null)rp.push(`${X(r.start).toFixed(1)},${Y(r.prevW).toFixed(1)}`);
+   rp.push(`${X(r.start).toFixed(1)},${Y(0).toFixed(1)}`);
+   rp.push(`${X(r.end).toFixed(1)},${Y(0).toFixed(1)}`);
+   const nx=runs[ri+1];
+   if(nx&&nx.type==='op')rp.push(`${X(r.end).toFixed(1)},${Y(nx.pts[0].w).toFixed(1)}`);
+   g+=`<polyline points="${rp.join(' ')}" fill="none" stroke="#ff5a4a" stroke-width="2" stroke-linejoin="round" stroke-linecap="square"/>`;
+   if(r.prevW!=null)g+=`<text x="${(X(r.start)+4).toFixed(1)}" y="${(Y(0)-8).toFixed(1)}" fill="#ffb37f" font-size="10.5" font-weight="bold">直前 ${r.prevW}分</text>`;
   }
-  seg=[];
- };
- samples.forEach(p=>{if(p.w==null)flush();else seg.push(p)});flush();
+ });
  const valid=samples.filter(x=>x.w!=null);
  const lp=valid[valid.length-1];
- g+=`<circle cx="${X(lp.m)}" cy="${Y(lp.w)}" r="4" fill="#ffd78b" stroke="#17202a" stroke-width="1.5"/><text x="${Math.min(X(lp.m),W-40)}" y="${Math.max(Y(lp.w)-8,10)}" fill="#ffe0a5" font-size="11" font-weight="bold" text-anchor="middle">${lp.w}分</text>`;
- el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img">${g}<g class="rg-guide" style="display:none"><line class="rg-line" y1="${pt}" y2="${pt+ih}" stroke="#ffffff" stroke-width="1" opacity="0.75"/><circle class="rg-dot" r="5" fill="#ffffff" stroke="#ffd78b" stroke-width="2"/></g></svg><div class="rg-readout" style="font-size:12.5px;color:#ffe0a5;font-weight:700;min-height:17px;margin-top:6px"></div><div style="font-size:11px;color:#e4e8eb;margin-top:6px">現在 ${lp.w}分 ／ 最高 ${Math.max(...waits)}分 ／ 平均 ${Math.round(waits.reduce((a,b)=>a+b,0)/waits.length)}分（記録 ${samples.length}件）</div>`;
+ const lastRun=runs[runs.length-1];
+ const nowDown=!!(lastRun&&lastRun.type==='down');
+ if(nowDown){
+  g+=`<circle cx="${X(drawEnd)}" cy="${Y(0)}" r="4" fill="#ff5a4a" stroke="#17202a" stroke-width="1.5"/>`;
+ }else{
+  g+=`<circle cx="${X(drawEnd)}" cy="${Y(lp.w)}" r="4" fill="#ffd78b" stroke="#17202a" stroke-width="1.5"/><text x="${Math.min(X(drawEnd),W-40)}" y="${Math.max(Y(lp.w)-8,10)}" fill="#ffe0a5" font-size="11" font-weight="bold" text-anchor="middle">${lp.w}分</text>`;
+ }
+ el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img">${g}<g class="rg-guide" style="display:none"><line class="rg-line" y1="${pt}" y2="${pt+ih}" stroke="#ffffff" stroke-width="1" opacity="0.75"/><circle class="rg-dot" r="5" fill="#ffffff" stroke="#ffd78b" stroke-width="2"/></g></svg><div class="rg-readout" style="font-size:12.5px;color:#ffe0a5;font-weight:700;min-height:17px;margin-top:6px"></div><div style="font-size:11px;color:#e4e8eb;margin-top:6px">${nowDown?`一時休止中（直前 ${lp.w}分）`:`現在 ${lp.w}分`} ／ 最高 ${Math.max(...waits)}分 ／ 平均 ${Math.round(waits.reduce((a,b)=>a+b,0)/waits.length)}分（記録 ${samples.length}件）</div>`;
  const stopTxt=[];
  stops.filter(st=>st.start>open).forEach(st=>{
   if(st.end!=null)stopTxt.push(`一時運営中止 ${fmtMin(st.start)}〜${fmtMin(st.end)}`);
@@ -755,17 +781,17 @@ function renderRideGraph(el,samplesIn){
    const rect=svgEl.getBoundingClientRect();if(!rect.width)return;
    const vx=(clientX-rect.left)/rect.width*W;
    const mins=open+(vx-pl)/iw*(close-open);
-   let cur=null;
-   for(const p of samples){if(p.m<=mins)cur=p;else break}
+   let cur=null,prevW2=null;
+   for(const p of samples){if(p.m<=mins){cur=p;if(p.w!=null)prevW2=p.w}else break}
    const gEl=svgEl.querySelector('.rg-guide');if(!gEl)return;
    const ro=el.querySelector('.rg-readout');
-   if(!cur||cur.w==null||mins>samples[samples.length-1].m){gEl.style.display='none';if(ro)ro.textContent='';return}
+   if(!cur||mins>drawEnd){gEl.style.display='none';if(ro)ro.textContent='';return}
    const cx=pl+(Math.min(Math.max(mins,open),close)-open)/(close-open)*iw;
-   const cy=pt+ih-(cur.w/yMax)*ih;
+   const cy=cur.w==null?Y(0):pt+ih-(cur.w/yMax)*ih;
    gEl.style.display='';
    const ln=svgEl.querySelector('.rg-line');ln.setAttribute('x1',cx);ln.setAttribute('x2',cx);
    const dt=svgEl.querySelector('.rg-dot');dt.setAttribute('cx',cx);dt.setAttribute('cy',cy);
-   if(ro)ro.textContent=fmtMin(Math.round(mins))+' → 待ち時間 '+cur.w+'分';
+   if(ro)ro.textContent=cur.w==null?fmtMin(Math.round(mins))+' → 一時休止中'+(prevW2!=null?'（直前 '+prevW2+'分）':''):fmtMin(Math.round(mins))+' → 待ち時間 '+cur.w+'分';
   };
   svgEl.addEventListener('touchstart',e=>{showAt(e.touches[0].clientX)},{passive:true});
   svgEl.addEventListener('touchmove',e=>{if(e.cancelable)e.preventDefault();showAt(e.touches[0].clientX)},{passive:false});
