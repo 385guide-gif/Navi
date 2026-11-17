@@ -354,7 +354,7 @@ function renderLive(data){
   $('btmStatus').className='btm-status down';
  }
  const top=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime).slice(0,3);
- $('topRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride tap" data-ride-id="${esc(x.entityId||x.id||'')}" data-ride-name="${esc(name(x))}"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><span class="graph-hint">グラフ ›</span><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
+ $('topRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride tap" data-ride-id="${esc(x.entityId||x.id||'')}" data-ride-name="${esc(name(x))}"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
  const tdStr=dateTokyo();
  if(operatedDate!==tdStr){operatedDate=tdStr;operatedToday=new Set()}
  rides.forEach(x=>{if(x.status==='OPERATING')operatedToday.add(x.entityId||x.id)});
@@ -456,7 +456,7 @@ function closedRidesHtml(rows){
   }
   const period=rehab?(CLOSURE_PERIODS[r.nm]?.period||''):'';
   const periodHtml=period?` <span style="color:#ffd9a0">休止期間 ${esc(period)}</span>`:'';
-  return `<div class="row"><div><div class="rowname">${esc(r.nm)}</div><div class="rowmeta">運営状況${red}${periodHtml}</div></div><span class="status down" style="${pillStyle}">${pill}</span></div>`;
+  return `<div class="row tap" data-ride-id="${esc(r.id||'')}" data-ride-name="${esc(r.nm)}"><div><div class="rowname">${esc(r.nm)}</div><div class="rowmeta">運営状況${red}${periodHtml}</div></div><span class="status down" style="${pillStyle}">${pill}</span></div>`;
  }).join('');
 }
 async function loadDowntimes(){
@@ -849,6 +849,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkPageU
 window.addEventListener('pageshow',checkPageUpdate);
 setInterval(checkPageUpdate,15*60*1000);
 $('topRides').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName)});
+$('closedRides').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName)});
 $('rideModalClose').addEventListener('click',closeRideGraph);
 $('rideModal').addEventListener('click',e=>{if(e.target===$('rideModal'))closeRideGraph()});
 renderHdrDate();
