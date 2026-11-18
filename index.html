@@ -65,8 +65,6 @@ header{display:flex;justify-content:space-between;align-items:center;gap:8px;pad
 .eyebrow{font-size:10px;letter-spacing:.22em;color:#ffe0aa;font-weight:800}
 h1{font-size:28px;line-height:1.12;margin:7px 0 6px;font-weight:900}
 .hero p{font-size:12px;margin:0;color:#f0f2f3}
-.train-strip{position:relative;height:44px;overflow:hidden;margin:-4px 0 0}
-.train-strip img{position:absolute;left:0;bottom:3px;height:38px;width:auto;opacity:0;will-change:transform;pointer-events:none}
 .btm-wait-card{flex:none;background:rgba(9,17,25,.84);border:1px solid rgba(255,215,139,.45);border-radius:18px;padding:13px 16px;text-align:center;min-width:124px;box-shadow:0 10px 26px #0007;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);text-shadow:none}
 .btm-wait-card .btm-label{font-size:9px;letter-spacing:.12em;color:#ffe0aa;font-weight:800;margin-bottom:3px}
 .btm-wait-card .btm-time{font-size:44px;line-height:1;font-weight:900;color:#fff;letter-spacing:-.02em}
@@ -161,7 +159,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
   <div class="btm-status" id="btmStatus">取得中</div>
  </div>
 </section>
-<div class="train-strip" id="trainStrip"><img id="trainImg" src="train.png?v=1" alt=""></div>
+
 <section class="panel">
  <div class="panelhead"><h2>ビッグサンダー・マウンテン</h2><span class="stamp" id="btmGraphStamp">本日</span></div>
  <div id="btmGraph"><div class="loading">待ち時間の記録を取得しています…</div></div>
@@ -895,19 +893,6 @@ function updateBackground(){
  cur.classList.remove('on');
  bgActive=1-bgActive;
 }
-let trainRunning=false;
-function runTrain(){
- const strip=$('trainStrip'),img=$('trainImg');
- if(!strip||!img||trainRunning||document.hidden)return;
- const sw=strip.clientWidth;if(!sw)return;
- let tw=img.getBoundingClientRect().width;
- if(!tw)tw=Math.round(38*2102/180);
- trainRunning=true;img.style.opacity='1';
- const dist=sw+tw+40;
- const anim=img.animate([{transform:`translateX(${-tw-20}px)`},{transform:`translateX(${sw+20}px)`}],{duration:Math.round(dist/95)*1000,easing:'linear'});
- const done=()=>{img.style.opacity='0';trainRunning=false};
- anim.onfinish=done;anim.oncancel=done;
-}
 async function refresh(){
  const b=$('refreshBtn');b.disabled=true;b.textContent='更新中…';
  const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods]];
@@ -916,7 +901,6 @@ async function refresh(){
  renderHdrDate();
  $('lastUpdated').textContent='最終更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
  b.disabled=false;b.textContent='↻ 更新';
- runTrain();
 }
 // プルダウン更新（一番上までスクロールした状態で下に引く）
 (()=>{
