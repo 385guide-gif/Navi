@@ -203,14 +203,14 @@ const $=id=>document.getElementById(id);
 const TP='https://api.themeparks.wiki/v1';
 const JMA='https://www.jma.go.jp/bosai/forecast/data/forecast/120000.json';
 const AMEDAS='https://api.cultivationdata.net/amds?no=44136';
-const WEATHER='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=temperature_2m,precipitation,weather_code&forecast_days=2&timezone=Asia%2FTokyo&temperature_unit=celsius&daily=sunrise,sunset';
+const WEATHER='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=temperature_2m,precipitation,weather_code,wind_gusts_10m&forecast_days=2&timezone=Asia%2FTokyo&temperature_unit=celsius&daily=sunrise,sunset';
 let landPark=null,seaPark=null,weather=null,dayIndex=0,parkEntities=[];
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function dateTokyo(d=new Date()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)}
 function timeTokyo(s){const d=new Date(s);return isNaN(d)?'--':d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'})}
 function icon(code){if(code===0)return'☀️';if(code<=2)return'🌤️';if(code===3)return'☁️';if(code<=48)return'🌫️';if(code<=67)return'🌧️';if(code<=77)return'🌨️';if(code<=82)return'🌦️';return'⛈️'}
 function weatherName(code){if(code===0)return'快晴';if(code<=2)return'晴れ';if(code===3)return'くもり';if(code<=48)return'霧';if(code<=67)return'雨';if(code<=77)return'雪';if(code<=82)return'にわか雨';return'雷雨'}
-function windDir(deg){const a=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];return a[Math.round(Number(deg)/22.5)%16]+'風'}
+function windDir(code){const a=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];const c=Number(code);if(!Number.isFinite(c)||c===0)return'静穏';return a[c%16]+'風'}
 async function json(url,label){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error(label+' (HTTP '+r.status+')');return r.json()}
 function jmaEmoji(text,code){
  const t=String(text||'');
@@ -293,37 +293,58 @@ $('todayTab').onclick=()=>setDay(0);$('tomorrowTab').onclick=()=>setDay(1);
 function setDay(n){dayIndex=n;$('todayTab').classList.toggle('active',n===0);$('tomorrowTab').classList.toggle('active',n===1);renderHourly()}
 let amedasObs=null;
 function fwRisk(speed,deg){
- const idx=((Math.round(Number(deg)/22.5)%16)+16)%16;
+ const code=Number(deg);
  const v=Number(speed);
- let p,group;
- if([7,8,9].includes(idx)){group='south';p=v<2?10:v<3?50:v<4?88:v<5?95:98}
- else if([5,6,10,11].includes(idx)){group='side';p=v<3?8:v<4?30:v<5?55:v<6?75:90}
- else{group='other';p=v<4?4:v<5?12:v<6?28:v<7?55:v<8?78:v<10?90:97}
- let rain='';
+ const idx=Number.isFinite(code)?((code%16)+16)%16:-1;
+ const band=v<2?0:v<3?1:v<4?2:v<5?3:v<6?4:v<8?5:6;
+ const T={core:[90,90,88,95,97,97,97],se:[60,60,55,50,90,90,90],sw:[45,45,50,50,60,60,80],flank:[20,12,25,12,30,30,30],north:[2,2,17,43,70,95,97],east:[10,8,5,17,35,35,35],west:[40,40,20,20,60,60,60]};
+ let group,p;
+ if(v<0.5||code===0){group='calm';p=5}
+ else if([7,8,9].includes(idx)){group='core';p=T.core[band]}
+ else if(idx===6){group='se';p=T.se[band]}
+ else if(idx===10){group='sw';p=T.sw[band]}
+ else if([5,11].includes(idx)){group='flank';p=T.flank[band]}
+ else if([15,0,1,2,14].includes(idx)){group='north';p=T.north[band]}
+ else if([3,4].includes(idx)){group='east';p=T.east[band]}
+ else{group='west';p=T.west[band]}
+ let gust=null,rain='',thunder=false,prFc=0;
  if(weather?.hourly){
   const i=weather.hourly.time.indexOf(dateTokyo()+'T20:00');
   if(i>=0){
-   const code=weather.hourly.weather_code[i],pr=Number(weather.hourly.precipitation[i]||0);
-   if(code>=95){p+=35;rain='雷'}
-   else if(pr>=5){p+=20;rain='大雨'}
-   else if(pr>=2){p+=10;rain='雨'}
-   else if(pr>=0.5){p+=3;rain='小雨'}
+   prFc=Number(weather.hourly.precipitation[i]||0);
+   if(Array.isArray(weather.hourly.wind_gusts_10m))gust=Number(weather.hourly.wind_gusts_10m[i]||0);
+   if(Number(weather.hourly.weather_code[i])>=95)thunder=true;
   }
  }
- return{p:Math.max(0,Math.min(98,p)),group,rain};
+ if(gust!=null&&Number.isFinite(gust)){
+  if(gust>=10)p=Math.max(p,85);
+  else if(gust>=8)p=Math.max(p,45);
+  else if(gust>=6)p+=5;
+ }
+ const prObs=amedasObs&&Number.isFinite(amedasObs.pr1h)?amedasObs.pr1h:0;
+ const pr1h=Math.max(prFc,prObs);
+ const p10=amedasObs&&Number.isFinite(amedasObs.p10m)?amedasObs.p10m:0;
+ if(pr1h>=5){p=Math.max(p,90);rain='大雨'}
+ else if(pr1h>=3){p=Math.max(p+35,60);rain='大雨'}
+ else if(pr1h>=1){p+=15;rain='雨'}
+ else if(pr1h>=0.5){p+=5;rain='小雨'}
+ if(p10>=0.5&&pr1h>=1)p+=5;
+ if(thunder){p+=35;rain='雷'}
+ return{p:Math.max(1,Math.min(98,p)),group,rain,gust};
 }
 function renderFireworks(){
  if(!amedasObs)return;
- const {p,group,rain}=fwRisk(amedasObs.speed,amedasObs.deg);
+ const {p,group,rain,gust}=fwRisk(amedasObs.speed,amedasObs.deg);
  const dirName=windDir(amedasObs.deg).replace('風','');
  const v=amedasObs.speed;
  let reason;
  if(rain==='雷')reason='20時頃に雷の予報があり、中止の可能性が高まります';
- else if(group==='south'&&v>=3)reason=`${dirName}の海風 ${v} m/s。燃えかすが市街地側へ流れる条件で、中止濃厚です`;
- else if(group==='south'&&v>=2)reason=`${dirName}の海風がやや強めです。上空ではさらに強く吹くため要注意`;
- else if(group==='side'&&v>=4)reason=`${dirName} ${v} m/s は当落線上のグレーゾーンです`;
- else if(group==='other'&&v>=6)reason=`風速 ${v} m/s と強く、花火玉の軌道が逸れる条件です`;
+ else if(group==='core')reason=`${dirName}の海風 ${v} m/s。南寄りの風は弱くても燃えかすが市街地側へ流れるため、中止の可能性が非常に高い条件です`;
+ else if((group==='se'||group==='sw')&&p>=50)reason=`${dirName} ${v} m/s。南寄りの気流で中止になりやすい条件です`;
+ else if(gust!=null&&gust>=10&&p>=80)reason=`最大風速 ${gust} m/s の予報。突風で花火玉の軌道が逸れる条件です`;
+ else if(group==='north'&&v>=5)reason=`${dirName} ${v} m/s と強めです。強風で中止になる可能性が高まります`;
  else if(rain==='大雨')reason='20時頃の雨が強まる予報です（風の条件は問題なし）';
+ else if(rain==='雨')reason='20時頃に雨の予報があり、中止の可能性がやや高まります';
  else reason=`${dirName} ${v} m/s。風の条件は開催に支障なさそうです`;
  const go=100-p;
  $('fwPct').textContent=go+'%';
@@ -339,7 +360,7 @@ async function loadAmedas(){
  $('currentDirection').textContent=d.windDirection?windDir(val(d.windDirection)): '--';
  $('amedasTime').textContent=d.dataTime?.[0]||'--';
   const ws=val(d.wind),wd=val(d.windDirection);
-  if(ws!=null&&wd!=null&&Number.isFinite(Number(ws))){amedasObs={speed:Number(ws),deg:Number(wd)};renderFireworks()}
+  if(ws!=null&&wd!=null&&Number.isFinite(Number(ws))){amedasObs={speed:Number(ws),deg:Number(wd),pr1h:Number.isFinite(Number(val(d.precipitation1h)))?Number(val(d.precipitation1h)):0,p10m:Number.isFinite(Number(val(d.precipitation10m)))?Number(val(d.precipitation10m)):0};renderFireworks()}
 }
 async function loadPark(){
  const dest=await json(TP+'/destinations','パーク一覧を取得できません');
