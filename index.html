@@ -203,9 +203,7 @@ const $=id=>document.getElementById(id);
 const TP='https://api.themeparks.wiki/v1';
 const JMA='https://www.jma.go.jp/bosai/forecast/data/forecast/120000.json';
 const AMEDAS='https://api.cultivationdata.net/amds?no=44136';
-const WEATHER='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=temperature_2m,precipitation,weather_code,wind_gusts_10m&forecast_days=2&timezone=Asia%2FTokyo&temperature_unit=celsius&daily=sunrise,sunset';
-const GUST_ICON='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=wind_gusts_10m&forecast_days=2&timezone=Asia%2FTokyo&models=icon_seamless';
-const GUST_ECMWF='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=wind_gusts_10m&forecast_days=2&timezone=Asia%2FTokyo&models=ecmwf_ifs025';
+const WEATHER='https://api.open-meteo.com/v1/forecast?latitude=35.6532&longitude=139.9020&hourly=temperature_2m,precipitation,weather_code&forecast_days=2&timezone=Asia%2FTokyo&temperature_unit=celsius&daily=sunrise,sunset';
 let landPark=null,seaPark=null,weather=null,dayIndex=0,parkEntities=[];
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function dateTokyo(d=new Date()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)}
@@ -282,12 +280,6 @@ async function loadJma(){
 }
 async function loadHourly(){
  weather=await json(WEATHER,'1時間ごとの天気予報を取得できません');
- try{
-  const key=dateTokyo()+'T20:00';
-  const pick=d=>{if(!d?.hourly)return null;const i=d.hourly.time.indexOf(key);return i>=0?Number(d.hourly.wind_gusts_10m[i]):null};
-  const [a,b]=await Promise.all([json(GUST_ICON,'').catch(()=>null),json(GUST_ECMWF,'').catch(()=>null)]);
-  gustAlt={icon:pick(a),ecmwf:pick(b)};
- }catch(e){gustAlt=null}
  renderHourly();renderFireworks();updateBackground();
 }
 function renderHourly(){
@@ -299,7 +291,6 @@ function renderHourly(){
 }
 $('todayTab').onclick=()=>setDay(0);$('tomorrowTab').onclick=()=>setDay(1);
 function setDay(n){dayIndex=n;$('todayTab').classList.toggle('active',n===0);$('tomorrowTab').classList.toggle('active',n===1);renderHourly()}
-let gustAlt=null;
 let amedasObs=null;
 function fwRisk(speed,deg){
  const code=Number(deg);
@@ -316,23 +307,13 @@ function fwRisk(speed,deg){
  else if([15,0,1,2,14].includes(idx)){group='north';p=T.north[band]}
  else if([3,4].includes(idx)){group='east';p=T.east[band]}
  else{group='west';p=T.west[band]}
- let gust=null,rain='',thunder=false,prFc=0;
+ let rain='',thunder=false,prFc=0;
  if(weather?.hourly){
   const i=weather.hourly.time.indexOf(dateTokyo()+'T20:00');
   if(i>=0){
    prFc=Number(weather.hourly.precipitation[i]||0);
-   if(Array.isArray(weather.hourly.wind_gusts_10m))gust=Number(weather.hourly.wind_gusts_10m[i]||0);
    if(Number(weather.hourly.weather_code[i])>=95)thunder=true;
   }
- }
- if(gustAlt){
-  const cs=[gust,gustAlt.icon,gustAlt.ecmwf].filter(x=>x!=null&&Number.isFinite(x)).sort((a,b)=>a-b);
-  if(cs.length)gust=cs.length%2?cs[(cs.length-1)/2]:(cs[cs.length/2-1]+cs[cs.length/2])/2;
- }
- if(gust!=null&&Number.isFinite(gust)){
-  if(gust>=10)p=Math.max(p,85);
-  else if(gust>=8)p=Math.max(p,45);
-  else if(gust>=6)p+=5;
  }
  const prObs=amedasObs&&Number.isFinite(amedasObs.pr1h)?amedasObs.pr1h:0;
  const pr1h=Math.max(prFc,prObs);
@@ -343,18 +324,17 @@ function fwRisk(speed,deg){
  else if(pr1h>=0.5){p+=5;rain='小雨'}
  if(p10>=0.5&&pr1h>=1)p+=5;
  if(thunder){p+=35;rain='雷'}
- return{p:Math.max(1,Math.min(98,p)),group,rain,gust};
+ return{p:Math.max(1,Math.min(98,p)),group,rain};
 }
 function renderFireworks(){
  if(!amedasObs)return;
- const {p,group,rain,gust}=fwRisk(amedasObs.speed,amedasObs.deg);
+ const {p,group,rain}=fwRisk(amedasObs.speed,amedasObs.deg);
  const dirName=windDir(amedasObs.deg).replace('風','');
  const v=amedasObs.speed;
  let reason;
  if(rain==='雷')reason='20時頃に雷の予報があり、中止の可能性が高まります';
  else if(group==='core')reason=`${dirName}の海風 ${v} m/s。南寄りの風は弱くても燃えかすが市街地側へ流れるため、中止の可能性が非常に高い条件です`;
  else if((group==='se'||group==='sw')&&p>=50)reason=`${dirName} ${v} m/s。南寄りの気流で中止になりやすい条件です`;
- else if(gust!=null&&gust>=10&&p>=80)reason=`最大風速 ${gust} m/s の予報。突風で花火玉の軌道が逸れる条件です`;
  else if(group==='north'&&v>=5)reason=`${dirName} ${v} m/s と強めです。強風で中止になる可能性が高まります`;
  else if(rain==='大雨')reason='20時頃の雨が強まる予報です（風の条件は問題なし）';
  else if(rain==='雨')reason='20時頃に雨の予報があり、中止の可能性がやや高まります';
