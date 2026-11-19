@@ -23,6 +23,12 @@ header{display:flex;justify-content:space-between;align-items:center;gap:8px;pad
 .brand{font-size:22px;font-weight:900;letter-spacing:.1em}.brand small{display:block;font-size:9px;letter-spacing:.22em;color:#f4d7a7;margin-top:2px}
 .live{font-size:10px;border:1px solid #b9dfc8;border-radius:30px;padding:7px 10px;background:#10241bbf;color:#c9f6d8}
 .hdr-date{font-size:15.5px;font-weight:800;letter-spacing:.02em;white-space:nowrap}
+.hdr-datecol{display:flex;flex-direction:column;gap:1px}
+.hdr-holiday{font-size:10.5px;font-weight:700;color:#ff9db0;white-space:nowrap}
+.anniv-strip{display:none}
+.anniv-strip.has{display:flex;flex-wrap:wrap;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 13px;margin:0 0 10px;box-shadow:0 6px 18px #0004;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:11.5px}
+.anniv-label{font-weight:800;color:#f4d7a7;margin-right:2px}
+.anniv-pill{border:1px solid var(--line);border-radius:999px;padding:2px 8px;background:#ffffff14;white-space:nowrap}
 .hdr-left{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0}
 .hdr-weather{display:flex;flex-direction:column;align-items:center;line-height:1.15;min-width:46px}
 .hw-icon{font-size:25px;line-height:1.1}
@@ -149,7 +155,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div>
 <div class="pull-ind" id="pullInd">↓ 引っ張って更新</div>
 <main>
-<header><div class="hdr-left"><div class="hdr-date" id="hdrDate">----年--月--日（-）</div><div class="hdr-weather" id="hdrWeather"></div></div><div class="hdr-parks"><div class="hdr-park"><span class="park-pill tdl">TDL</span><span class="hdr-hours tdl" id="hdrTdlHours">取得中</span></div><div class="hdr-park"><span class="park-pill tds">TDS</span><span class="hdr-hours tds" id="hdrSeaHours">取得中</span></div></div></header>
+<header><div class="hdr-left"><div class="hdr-datecol"><div class="hdr-date" id="hdrDate">----年--月--日（-）</div><div class="hdr-holiday" id="hdrHoliday"></div></div><div class="hdr-weather" id="hdrWeather"></div></div><div class="hdr-parks"><div class="hdr-park"><span class="park-pill tdl">TDL</span><span class="hdr-hours tdl" id="hdrTdlHours">取得中</span></div><div class="hdr-park"><span class="park-pill tds">TDS</span><span class="hdr-hours tds" id="hdrSeaHours">取得中</span></div></div></header>
 <div class="amedas-bar" id="amedasBar">
  <div class="amedas-left">
   <div class="amedas-vals">
@@ -167,6 +173,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
   <div class="fw-reason" id="fwReason">観測データを取得しています…</div>
  </div>
 </div>
+<div class="anniv-strip" id="annivStrip"></div>
 <section class="hero">
  <div class="hero-left"><div class="eyebrow">TOKYO DISNEYLAND</div><h1>BIG THUNDER<br>MOUNTAIN</h1></div>
  <div class="btm-wait-card" id="btmCard">
@@ -530,6 +537,25 @@ async function loadClosurePeriods(){
   if(Object.keys(map).length){CLOSURE_PERIODS=map;if(lastDown.length)$('closedRides').innerHTML=closedRidesHtml(lastDown)}
  }catch(e){}
 }
+let annivRows=null;
+async function loadAnniversaries(){
+ try{
+  const r=await fetch(ANNIVCSV,{cache:'no-store'});
+  if(!r.ok)return;
+  annivRows=parseCsv(await r.text());
+  renderAnniv();
+ }catch(e){}
+}
+function renderAnniv(){
+ const el=$('annivStrip');if(!el||!annivRows)return;
+ const today=dateTokyo();const md=today.slice(5);const yr=+today.slice(0,4);
+ const pri={'パーク':0,'施設':1,'アトラクション':2,'キャラクター':3,'人物':4,'会社':5,'映画':6};
+ const hits=annivRows.filter(x=>x.date&&x.date.slice(5)===md&&yr-(+x.date.slice(0,4))>=0)
+  .sort((a,b)=>((pri[a.category]??9)-(pri[b.category]??9))||(a.date<b.date?-1:1));
+ if(!hits.length){el.className='anniv-strip';el.innerHTML='';return}
+ el.className='anniv-strip has';
+ el.innerHTML='<span class="anniv-label">\u{1F389} 今日のディズニー記念日</span>'+hits.map(x=>{const n=yr-(+x.date.slice(0,4));return `<span class="anniv-pill">${esc(x.name)} ${n===0?'本日':n+'周年'}</span>`}).join('');
+}
 function computeDowntime(data){
  const pts=[];
  const op=data.opening;
@@ -742,14 +768,41 @@ function renderSeaHours(schedule){
  $('hdrSeaHours').textContent=op?`${timeTokyo(op.openingTime)}〜${timeTokyo(op.closingTime)}`:'未掲載';
  if(op)seaRange={open:tokyoMinutes(new Date(op.openingTime)),close:tokyoMinutes(new Date(op.closingTime))};
 }
+function jpHolidays(year){
+ const H={};const set=(m,d,n)=>{H[m+'/'+d]=n};
+ set(1,1,'元日');set(2,11,'建国記念の日');set(2,23,'天皇誕生日');
+ set(4,29,'昭和の日');set(5,3,'憲法記念日');set(5,4,'みどりの日');set(5,5,'こどもの日');
+ set(8,11,'山の日');set(11,3,'文化の日');set(11,23,'勤労感謝の日');
+ const mon=(m,n)=>{const f=new Date(Date.UTC(year,m-1,1)).getUTCDay();return 1+(8-f)%7+(n-1)*7};
+ set(1,mon(1,2),'成人の日');set(7,mon(7,3),'海の日');set(9,mon(9,3),'敬老の日');set(10,mon(10,2),'スポーツの日');
+ const eq=b=>Math.floor(b+0.242194*(year-1980))-Math.floor((year-1980)/4);
+ set(3,eq(20.8431),'春分の日');set(9,eq(23.2488),'秋分の日');
+ const key=t=>{const d=new Date(t);return (d.getUTCMonth()+1)+'/'+d.getUTCDate()};
+ const dayMs=86400000;const jan1=Date.UTC(year,0,1);
+ for(let t=jan1+dayMs;t<Date.UTC(year,11,31);t+=dayMs){
+  const dow=new Date(t).getUTCDay();
+  if(dow===0||dow===6||H[key(t)])continue;
+  if(H[key(t-dayMs)]&&H[key(t+dayMs)])H[key(t)]='国民の休日';
+ }
+ Object.keys(H).slice().forEach(k=>{
+  const[a,b]=k.split('/').map(Number);const t=Date.UTC(year,a-1,b);
+  if(new Date(t).getUTCDay()!==0)return;
+  let u=t+dayMs;while(H[key(u)])u+=dayMs;
+  if(new Date(u).getUTCFullYear()===year)H[key(u)]='振替休日';
+ });
+ return H;
+}
+function jpHoliday(y,m,d){return jpHolidays(y)[m+'/'+d]||''}
 function renderHdrDate(){
  const parts=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',weekday:'short'}).formatToParts(new Date());
  const g=t=>(parts.find(x=>x.type===t)||{}).value||'';
  const el=$('hdrDate');if(el)el.textContent=`${g('year')}年${g('month')}月${g('day')}日（${g('weekday')}）`;
+ const hd=$('hdrHoliday');if(hd)hd.textContent=jpHoliday(+g('year'),+g('month'),+g('day'));
 }
 const SHOWCSV='tdl_show_schedule.csv';
 const SHOW_HIDE=['ミッキーのレインボー・ルアウ'];
 const CLOSURECSV='tdl_closure_periods.csv';
+const ANNIVCSV='tdr_anniversaries.csv';
 function parseCsv(text){
  const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/);
  const head=lines[0].split(',');
@@ -951,7 +1004,7 @@ function updateBackground(){
 }
 async function refresh(){
  const b=$('refreshBtn');b.disabled=true;b.textContent='更新中…';
- const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods],['warnings',loadWarnings]];
+ const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods],['warnings',loadWarnings],['anniv',loadAnniversaries]];
  const out=await Promise.allSettled(jobs.map(x=>x[1]()));
  out.forEach((r,i)=>{if(r.status==='rejected'){const id=jobs[i][0];const map={jma:'jmaSummary',hourly:'hourly',amedas:'amedasTime',park:'topRides',shows:'showList'};if(id==='amedas'){$('amedasTime').textContent='取得エラー'}else{$(map[id]).innerHTML=`<div class="error">${esc(r.reason?.message||'取得エラー')}</div>`}}});
  renderHdrDate();
