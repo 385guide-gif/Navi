@@ -52,8 +52,9 @@ header{display:flex;justify-content:space-between;align-items:center;gap:8px;pad
 .modal-head h3{margin:0;font-size:14.5px}
 .modal-close{background:#ffffff1c;border:1px solid var(--line);color:#fff;border-radius:50%;width:32px;height:32px;font-size:14px;cursor:pointer;flex:none}
 .amedas-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:9px 13px;margin:0 0 10px;box-shadow:0 6px 18px #0004;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:12px}
-.amedas-vals{display:flex;align-items:center;gap:14px}
-.amedas-left{display:flex;flex-direction:column;gap:3px;min-width:0}
+.amedas-vals{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap}
+.amedas-top{display:flex;align-items:center;gap:8px;flex-basis:100%;min-width:0}
+.amedas-left{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .amedas-item{display:flex;align-items:baseline;gap:4px}
 .amedas-item span{font-size:10px;color:#d7e0e7}
 .amedas-item strong{font-size:17px;font-weight:900;color:#ffe0a5}
@@ -158,6 +159,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <main>
 <header><div class="hdr-left"><div class="hdr-datecol"><div class="hdr-date" id="hdrDate">----年--月--日（-）</div><div class="hdr-holiday" id="hdrHoliday"></div></div><div class="hdr-weather" id="hdrWeather"></div></div><div class="hdr-parks"><div class="hdr-park"><span class="park-pill tdl">TDL</span><span class="hdr-hours tdl" id="hdrTdlHours">取得中</span></div><div class="hdr-park"><span class="park-pill tds">TDS</span><span class="hdr-hours tds" id="hdrSeaHours">取得中</span></div></div></header>
 <div class="amedas-bar" id="amedasBar">
+ <div class="amedas-top">
  <div class="amedas-left">
   <div class="amedas-vals">
    <div class="amedas-item"><span>気温</span><strong id="currentTemp">--<em> ℃</em></strong></div>
@@ -168,6 +170,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
   <div class="warn-row" id="warnRow"></div>
  </div>
  <img class="costume-icon" id="costumeIcon" src="icon_vest.png?v=2" alt="">
+ </div>
  <div class="fw-row">
   <div class="fw-head"><span>🎆 花火実施予測</span><span class="fw-sub">スターブライト・クリスマス 20:30</span><strong id="fwPct">--%</strong></div>
   <div class="fw-track"><div class="fw-fill" id="fwFill"></div></div>
