@@ -52,7 +52,15 @@ header{display:flex;justify-content:space-between;align-items:center;gap:8px;pad
 .amedas-item strong{font-size:17px;font-weight:900;color:#ffe0a5}
 .amedas-item em{font-size:11px;font-style:normal;color:#e4e8eb}
 .amedas-meta{font-size:10px;color:#c9d3db}
-.costume-icon{width:46px;height:46px;object-fit:contain;flex:none;margin-left:auto;align-self:center}
+.costume-icon{width:34px;height:34px;object-fit:contain;flex:none}
+.amedas-right{display:flex;flex-direction:column;align-items:center;flex:none;margin-left:auto;align-self:center}
+.icon-time{font-size:9.5px;color:#c9d3db;line-height:1.25;margin-top:1px}
+.warn-row{display:flex;flex-wrap:wrap;gap:4px;min-height:15px;align-items:center}
+.warn-pill{font-size:10px;font-weight:700;line-height:1.3;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.warn-pill.special{background:#6a3ec9;color:#f3eaff}
+.warn-pill.danger{background:#8b1a1a;color:#fff}
+.warn-pill.warn{background:#c0392b;color:#fff}
+.warn-pill.adv{background:#e6b93d;color:#231f10}
 .fw-row{flex-basis:100%;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
 .fw-head{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:800}
 .fw-head .fw-sub{font-size:10px;color:#d7e0e7;font-weight:600}
@@ -142,9 +150,9 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
    <div class="amedas-item"><span>風速</span><strong id="currentWind">--<em> m/s</em></strong></div>
    <div class="amedas-item"><span>風向</span><strong id="currentDirection" style="font-size:13px;color:#fff">--</strong></div>
   </div>
-  <div class="amedas-meta">アメダス観測所 44136（<span id="amedasTime">--</span>）</div>
+  <div class="warn-row" id="warnRow"></div>
  </div>
- <img class="costume-icon" id="costumeIcon" src="icon_vest.png?v=2" alt="">
+ <div class="amedas-right"><img class="costume-icon" id="costumeIcon" src="icon_vest.png?v=2" alt=""><div class="icon-time" id="amedasTime">--</div></div>
  <div class="fw-row">
   <div class="fw-head"><span>🎆 花火実施予測</span><span class="fw-sub">スターブライト・クリスマス 20:30</span><strong id="fwPct">--%</strong></div>
   <div class="fw-track"><div class="fw-fill" id="fwFill"></div></div>
@@ -351,9 +359,29 @@ async function loadAmedas(){
  const tv=Number(val(d.temp));if(Number.isFinite(tv)){$('costumeIcon').src=tv>=30?'icon_short.png?v=2':tv>=25?'icon_shirt.png?v=2':tv>=19?'icon_vest.png?v=2':tv>15?'icon_jacket.png?v=2':tv>5?'icon_coat.png?v=2':'icon_coat.gif?v=1'}
  $('currentWind').innerHTML=`${val(d.wind)??'--'}<em> m/s</em>`;
  $('currentDirection').textContent=d.windDirection?windDir(val(d.windDirection)): '--';
- $('amedasTime').textContent=d.dataTime?.[0]||'--';
+ const dtm=d.dataTime?.[0]||'';$('amedasTime').textContent=dtm?dtm.split(' ').pop():'--';
   const ws=val(d.wind),wd=val(d.windDirection);
   if(ws!=null&&wd!=null&&Number.isFinite(Number(ws))){amedasObs={speed:Number(ws),deg:Number(wd),pr1h:Number.isFinite(Number(val(d.precipitation1h)))?Number(val(d.precipitation1h)):0,p10m:Number.isFinite(Number(val(d.precipitation10m)))?Number(val(d.precipitation10m)):0};renderFireworks()}
+}
+const WARN_NAMES={'02':'暴風雪警報','03':'レベル３大雨警報','04':'洪水警報','05':'暴風警報','06':'大雪警報','07':'波浪警報','08':'レベル３高潮警報','09':'レベル３土砂災害警報','10':'レベル２大雨注意報','12':'大雪注意報','13':'風雪注意報','14':'雷注意報','15':'強風注意報','16':'波浪注意報','17':'融雪注意報','18':'洪水注意報','19':'レベル２高潮注意報','20':'濃霧注意報','21':'乾燥注意報','22':'なだれ注意報','23':'低温注意報','24':'霜注意報','25':'着氷注意報','26':'着雪注意報','27':'融雪注意報','29':'レベル２土砂災害注意報','32':'暴風雪特別警報','33':'レベル５大雨特別警報','35':'暴風特別警報','36':'大雪特別警報','37':'波浪特別警報','38':'レベル５高潮特別警報','39':'レベル５土砂災害特別警報','43':'レベル４大雨危険警報','48':'レベル４高潮危険警報','49':'レベル４土砂災害危険警報'};
+const WARN_SPECIAL=new Set(['32','33','35','36','37','38','39']);
+const WARN_DANGER=new Set(['43','48','49']);
+const WARN_WARN=new Set(['02','03','04','05','06','07','08','09']);
+async function loadWarnings(){
+ const row=$('warnRow');if(!row)return;
+ try{
+  const reports=await json('https://www.jma.go.jp/bosai/warning/data/r8/120000.json','警報・注意報を取得できません');
+  const byCode={};
+  for(const rep of Array.isArray(reports)?reports:[]){
+   const items=rep?.warning?.class20Items||[];
+   const it=items.find(x=>x.areaCode==='1222700');
+   if(!it)continue;
+   for(const k of it.kinds||[]){if(k.code)byCode[k.code]=k.status}
+  }
+  const sev=c=>WARN_SPECIAL.has(c)?0:WARN_DANGER.has(c)?1:WARN_WARN.has(c)?2:3;
+  const act=Object.keys(byCode).filter(c=>byCode[c]==='発表'||byCode[c]==='継続').sort((a,b)=>sev(a)-sev(b)||a.localeCompare(b));
+  row.innerHTML=act.map(c=>{const nm=WARN_NAMES[c]||('警報・注意報（'+c+'）');const cls=['special','danger','warn','adv'][sev(c)];return `<span class="warn-pill ${cls}">${esc(nm)}</span>`}).join('');
+ }catch(e){/* 取得失敗時は表示を変えない */}
 }
 async function loadPark(){
  const dest=await json(TP+'/destinations','パーク一覧を取得できません');
@@ -895,7 +923,7 @@ function updateBackground(){
 }
 async function refresh(){
  const b=$('refreshBtn');b.disabled=true;b.textContent='更新中…';
- const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods]];
+ const jobs=[['jma',loadJma],['hourly',loadHourly],['amedas',loadAmedas],['park',loadPark],['shows',loadShows],['closures',loadClosurePeriods],['warnings',loadWarnings]];
  const out=await Promise.allSettled(jobs.map(x=>x[1]()));
  out.forEach((r,i)=>{if(r.status==='rejected'){const id=jobs[i][0];const map={jma:'jmaSummary',hourly:'hourly',amedas:'amedasTime',park:'topRides',shows:'showList'};if(id==='amedas'){$('amedasTime').textContent='取得エラー'}else{$(map[id]).innerHTML=`<div class="error">${esc(r.reason?.message||'取得エラー')}</div>`}}});
  renderHdrDate();
