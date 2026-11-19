@@ -373,7 +373,7 @@ async function loadAmedas(){
  const d=await json(AMEDAS,'アメダスデータを取得できません');
  const val=x=>Array.isArray(x)?x[0]:x;
  $('currentTemp').innerHTML=`${val(d.temp)??'--'}<em> ℃</em>`;
- const tv=Number(val(d.temp));if(Number.isFinite(tv)){$('costumeIcon').src=tv>=30?'icon_short.png?v=2':tv>=25?'icon_shirt.png?v=2':tv>=19?'icon_vest.png?v=2':tv>15?'icon_jacket.png?v=2':tv>5?'icon_coat.png?v=2':'icon_coat.gif?v=1'}
+ const tv=Number(val(d.temp));if(Number.isFinite(tv)){$('costumeIcon').src=tv>=30?'icon_short.png?v=2':tv>=21?'icon_shirt.png?v=2':tv>=16?'icon_vest.png?v=2':tv>=11?'icon_jacket.png?v=2':tv>5?'icon_coat.png?v=2':'icon_coat.gif?v=1'}
  $('currentWind').innerHTML=`${val(d.wind)??'--'}<em> m/s</em>`;
  $('currentDirection').textContent=d.windDirection?windDir(val(d.windDirection)): '--';
  const dtm=d.dataTime?.[0]||'';$('amedasTime').textContent=dtm?dtm.split(' ').pop():'--';
