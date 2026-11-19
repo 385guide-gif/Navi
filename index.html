@@ -94,6 +94,14 @@ h2{font-size:15px;margin:0;font-weight:850;letter-spacing:.02em}
 .top3-page{min-width:100%;scroll-snap-align:start}
 .top3-park{margin-bottom:8px}
 .top3-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.dpa-pill{display:inline-block;font-size:9.5px;font-weight:800;line-height:1.3;padding:2px 7px;border-radius:999px;vertical-align:2px;white-space:nowrap;margin-left:6px}
+.dpa-pill.on{background:#9cc24a;color:#1c2a08}
+.dpa-pill.fin{background:#c0392b;color:#fff}
+.dpa-pill.stop{background:#e6b93d;color:#231f10}
+.more-btn{display:block;margin:10px auto 2px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#ffffff16;color:#ffe0a5;font-size:19px;line-height:1;cursor:pointer}
+.btm-dpa{margin-top:6px;display:flex;gap:2px;align-items:center;justify-content:center}
+.btm-dpa .dpa-pill{margin-left:0}
+.dpa-price{font-size:10px;color:#ffe0aa;font-weight:700;margin-left:4px}
 .top3-dots .dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25)}
 .top3-dots .dot.on{background:#ffd78b}
 .ride{display:flex;align-items:center;gap:10px;background:#ffffff16;border-radius:12px;padding:10px 11px}
@@ -165,6 +173,7 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
   <div class="btm-label">STANDBY WAIT</div>
   <div class="btm-time" id="btmWait">--<i>分</i></div>
   <div class="btm-status" id="btmStatus">取得中</div>
+  <div class="btm-dpa" id="btmDpa"></div>
  </div>
 </section>
 
@@ -183,8 +192,8 @@ button.refresh{border:0;border-radius:10px;background:#f1cc89;color:#282016;font
 <section class="panel">
  <div class="panelhead"><h2>待ち時間 LONGEST TOP 3</h2><span class="stamp" id="rideStamp">LIVE</span></div>
  <div class="top3-swipe" id="top3Swipe">
-  <div class="top3-page"><div class="top3-park"><span class="park-pill tdl">TDL</span></div><div id="topRides" class="top3"><div class="loading">待ち時間を取得しています…</div></div></div>
-  <div class="top3-page"><div class="top3-park"><span class="park-pill tds">TDS</span></div><div id="seaTopRides" class="top3"><div class="loading">待ち時間を取得しています…</div></div></div>
+  <div class="top3-page"><div class="top3-park"><span class="park-pill tdl">TDL</span></div><div id="topRides" class="top3"><div class="loading">待ち時間を取得しています…</div></div><div id="topAll" class="top3" style="display:none;margin-top:8px"></div><button class="more-btn" id="moreTdl" type="button" style="display:none">+</button></div>
+  <div class="top3-page"><div class="top3-park"><span class="park-pill tds">TDS</span></div><div id="seaTopRides" class="top3"><div class="loading">待ち時間を取得しています…</div></div><div id="seaTopAll" class="top3" style="display:none;margin-top:8px"></div><button class="more-btn" id="moreSea" type="button" style="display:none">+</button></div>
  </div>
  <div class="top3-dots"><span class="dot on" id="dotTdl"></span><span class="dot" id="dotTds"></span></div>
 </section>
@@ -402,6 +411,16 @@ async function loadPark(){
  if(seaLive)renderSeaLive(seaLive);
 }
 function labelStatus(s){return({OPERATING:'運営中',DOWN:'一時休止',CLOSED:'運営終了',REFURBISHMENT:'長期休止中'})[s]||'状況確認中'}
+function dpaPill(q){
+ const prt=q&&q.PAID_RETURN_TIME;if(!prt)return '';
+ const st=prt.state||'';
+ const cls=st==='AVAILABLE'?'on':st==='FINISHED'?'fin':'stop';
+ const txt=st==='AVAILABLE'?'DPA販売中':st==='FINISHED'?'DPA完売':'DPA販売中止';
+ return `<span class="dpa-pill ${cls}">${txt}</span>`;
+}
+function rideRow(x,nm,i){
+ return `<div class="ride tap" data-ride-id="${esc(x.entityId||x.id||'')}" data-ride-name="${esc(nm)}"><div class="rank">${i+1}</div><div class="ridename">${esc(nm)}${dpaPill(x.queue)}<small>● ${labelStatus(x.status)}</small></div><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`;
+}
 function renderLive(data){
  const arr=data.liveData||[];
  const rides=arr.filter(x=>x.entityType==='ATTRACTION');
@@ -418,15 +437,21 @@ function renderLive(data){
   $('btmWait').innerHTML=isOp&&Number.isFinite(w)?`${w}<i>分</i>`:`--<i>分</i>`;
   $('btmStatus').textContent=(btm.status==='CLOSED'&&tokyoMinutes()>=360&&tokyoMinutes()<parkRange.open)?'オープン前':labelStatus(btm.status);
   btmHero={id:btm.entityId||btm.id,status:btm.status};updateBtmEndTime();
+  const bprt=btm.queue?.PAID_RETURN_TIME;
+  $('btmDpa').innerHTML=bprt?dpaPill(btm.queue)+(bprt.price?.formatted?`<span class="dpa-price">${esc(bprt.price.formatted)}</span>`:''):'';
   $('btmStatus').className='btm-status'+(isOp?'':' down');
  }else{
   $('btmWait').innerHTML=`--<i>分</i>`;
   btmHero=null;
+  $('btmDpa').innerHTML='';
   $('btmStatus').textContent='データなし';
   $('btmStatus').className='btm-status down';
  }
- const top=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime).slice(0,3);
- $('topRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride tap" data-ride-id="${esc(x.entityId||x.id||'')}" data-ride-name="${esc(name(x))}"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
+ const sorted=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime);
+ const top=sorted.slice(0,3),rest=sorted.slice(3);
+ $('topRides').innerHTML=top.length?top.map((x,i)=>rideRow(x,name(x),i)).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
+ $('topAll').innerHTML=rest.map((x,i)=>rideRow(x,name(x),i+3)).join('');
+ $('moreTdl').style.display=rest.length?'block':'none';
  const tdStr=dateTokyo();
  if(operatedDate!==tdStr){operatedDate=tdStr;operatedToday=new Set()}
  rides.forEach(x=>{if(x.status==='OPERATING')operatedToday.add(x.entityId||x.id)});
@@ -450,8 +475,11 @@ function renderSeaLive(data){
   const raw=x.name||found?.name;
   return typeof raw==='string'?raw:(raw?.ja||raw?.en||'名称不明');
  };
- const top=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime).slice(0,3);
- $('seaTopRides').innerHTML=top.length?top.map((x,i)=>`<div class="ride tap" data-ride-id="${esc(x.entityId||x.id||'')}" data-ride-name="${esc(name(x))}"><div class="rank">${i+1}</div><div class="ridename">${esc(name(x))}<small>● ${labelStatus(x.status)}</small></div><div class="wait">${x.queue.STANDBY.waitTime}<i> 分</i></div></div>`).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
+ const sorted=rides.filter(x=>x.status==='OPERATING'&&Number.isFinite(x.queue?.STANDBY?.waitTime)).sort((a,b)=>b.queue.STANDBY.waitTime-a.queue.STANDBY.waitTime);
+ const top=sorted.slice(0,3),rest=sorted.slice(3);
+ $('seaTopRides').innerHTML=top.length?top.map((x,i)=>rideRow(x,name(x),i)).join(''):'<div class="empty">現在、待ち時間を取得できるアトラクションがありません</div>';
+ $('seaTopAll').innerHTML=rest.map((x,i)=>rideRow(x,name(x),i+3)).join('');
+ $('moreSea').style.display=rest.length?'block':'none';
 }
 function updateBtmEndTime(){
  if(!btmHero||btmHero.status!=='CLOSED')return;
@@ -745,7 +773,7 @@ async function loadShows(){
   const mine=rows.filter(x=>x.date===today);
   const shows=mine.filter(x=>x.category==='パレード/ショー'&&!SHOW_HIDE.includes(x.name));
   const greets=mine.filter(x=>x.category==='キャラクターグリーティング');
-  const badges=x=>`${x.premier_access==='○'?'<span class="badge pa">プレミアアクセス</span>':''}${x.entry_reception==='○'?'<span class="badge en">エントリー受付</span>':''}${x.reservation_required==='○'?'<span class="badge rs">予約必須</span>':''}`;
+  const badges=x=>`${x.premier_access==='○'?'<span class="badge pa">DPA</span>':''}${x.entry_reception==='○'?'<span class="badge en">エントリー受付</span>':''}${x.reservation_required==='○'?'<span class="badge rs">予約必須</span>':''}`;
   const firstTime=x=>{const m=(x.times||'').match(/\d{1,2}:\d{2}/);return m?m[0].padStart(5,'0'):'99:99'};
   shows.sort((a,b)=>firstTime(a).localeCompare(firstTime(b)));
   const isParade=n=>/パレード|ハーモニー|トイズ/.test(n||'');
@@ -966,6 +994,9 @@ window.addEventListener('pageshow',checkPageUpdate);
 setInterval(checkPageUpdate,15*60*1000);
 $('topRides').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName)});
 $('seaTopRides').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName,seaRange)});
+$('topAll').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName)});
+$('seaTopAll').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName,seaRange)});
+[['moreTdl','topAll'],['moreSea','seaTopAll']].forEach(([b,l])=>{const btn=$(b);if(btn)btn.addEventListener('click',()=>{const el=$(l);const open=el.style.display!=='none';el.style.display=open?'none':'flex';btn.textContent=open?'+':'−'})});
 (()=>{const sw=$('top3Swipe');if(!sw)return;sw.addEventListener('scroll',()=>{const p=Math.round(sw.scrollLeft/Math.max(sw.clientWidth,1));const d1=$('dotTdl'),d2=$('dotTds');if(d1&&d2){d1.className='dot'+(p===0?' on':'');d2.className='dot'+(p===1?' on':'')}},{passive:true})})();
 $('closedRides').addEventListener('click',e=>{const row=e.target.closest('[data-ride-id]');if(row)openRideGraph(row.dataset.rideId,row.dataset.rideName)});
 $('rideModalClose').addEventListener('click',closeRideGraph);
